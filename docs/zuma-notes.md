@@ -238,3 +238,7 @@ docs/optimising-functions.md, as in both Feeding Frenzy ports.
   shows its own title prompt ("DRÜCKEN SIE A, UM ZU STARTEN", "A POUR COMMENCER", the Japanese, Korean and Chinese
   ones), main menu ("Willkommen bei Zuma!", "¡Bienvenido a Zuma!", "Benvenuto a Zuma!") and adventure screen ("TEMPEL
   VON ZUKULKAN", the Japanese, Korean and Chinese names).
+- **Switch** (development build, no LTO / PGO; `check_switch_build.py` passed): Ryujinx `lang_ko` (70 s,
+  `zuma_language = "ko"`) shows the Korean title prompt, main menu ("Zuma에 오신 것을 환영합니다!") and adventure
+  screen. Delivered in `out/dist/dev_20261027_zuma/zuma-nx/` (NRO `296f5866...`, the README with the languages); ELF
+  and map `out/nx/elf/zuma_dev_lang_20261027.*`.
