@@ -192,11 +192,18 @@ void PaceRenutSwap(uint32_t interval) {
 // native, so the guest's never runs): this hook shares the address with it (BANJO_RENUT_HOOK_SHARED, draw.cpp).
 extern "C" REX_FUNC(__imp__sub_821221C0);
 REX_HOOK_RAW(sub_821221C0) {  // D3DDevice_Present
+  // zuma-nx (2026-10-26): with Renut's renderer the game's SetRenderState_PresentInterval is Renut's, which keeps the
+  // interval in its own device layout (d3d_native_state.cpp kPresentInterval, 0x36A0), not at XDK 2135's +13772.
+  uint32_t interval_offset = kDeviceIntervalOffset;
+#if ZUMA_RENUT_RENDERER
+  constexpr uint32_t kRenutDeviceIntervalOffset = 0x36A0;
+  if (::banjo::renut_gpu::Active()) interval_offset = kRenutDeviceIntervalOffset;
+#endif
   // Which presentation interval the game asks for (1 = every vblank, 2 = every second one), when it changes.
-  if (kDeviceIntervalOffset) {
+  if (interval_offset) {
     static uint32_t last_interval = ~0u;
     uint32_t interval_be;
-    std::memcpy(&interval_be, base + ctx.r3.u32 + kDeviceIntervalOffset, 4);
+    std::memcpy(&interval_be, base + ctx.r3.u32 + interval_offset, 4);
     const uint32_t interval = __builtin_bswap32(interval_be);
     if (interval != last_interval) {
       last_interval = interval;
@@ -218,8 +225,7 @@ REX_HOOK_RAW(sub_821221C0) {  // D3DDevice_Present
 #if ZUMA_RENUT_RENDERER
   if (::banjo::renut_gpu::Active()) {
     uint8_t interval_bytes[4];
-    std::memcpy(interval_bytes, base + ctx.r3.u32 + kDeviceIntervalOffset, 4);
-    if (!kDeviceIntervalOffset) interval_bytes[3] = 1;
+    std::memcpy(interval_bytes, base + ctx.r3.u32 + interval_offset, 4);
     renut_native_sub_821221C0(ctx, base);  // Renut's Present (resolves and presents)
     // Renut's Swap does not reach the kernel's VdSwap, which advances the SDK's frame clock (clock_per_swap_hz, the
     // deterministic runs that compare Renut with the emulated GPU frame for frame; a no-op otherwise).

@@ -455,9 +455,9 @@ void D3DVertexShader_Bind_hook(u32 shader_va, u32 /*flags*/, u32 declaration_va,
 
 } // namespace
 
-BANJO_RENUT_HOOK(sub_820B74D0, D3DDevice_CreateVertexShader_hook);  // D3DDevice_CreateVertexShader  // feedingfrenzy-nx: (container) -> shader; 592-byte header
-BANJO_RENUT_HOOK(sub_820B73E8, D3DDevice_CreatePixelShader_hook);  // D3DDevice_CreatePixelShader  // feedingfrenzy-nx: (container) -> shader; 56-byte header
-BANJO_RENUT_HOOK(sub_820B6180, D3DDevice_CreateVertexDeclaration_hook);  // D3DDevice_CreateVertexDeclaration  // feedingfrenzy-nx: (elements) -> declaration; called once
+BANJO_RENUT_HOOK(sub_82125BB8, D3DDevice_CreateVertexShader_hook);  // D3DDevice_CreateVertexShader  // zuma-nx: (container) -> shader; 592-byte header (lis 0xA580) (Feeding Frenzy 82125BB8)
+BANJO_RENUT_HOOK(sub_82125AC8, D3DDevice_CreatePixelShader_hook);  // D3DDevice_CreatePixelShader  // zuma-nx: (container) -> shader (lis 0xB580) (Feeding Frenzy 82125AC8)
+BANJO_RENUT_HOOK(sub_82124AB8, D3DDevice_CreateVertexDeclaration_hook);  // D3DDevice_CreateVertexDeclaration  // zuma-nx: (elements) -> declaration (255 end mark, lis 0x2480) (Feeding Frenzy 82124AB8)
 #if 0  // bejeweled3-nx: N&B sub_82657048 (D3DVertexShader_Bind) is not linked in Bejeweled 3
 BANJO_RENUT_HOOK(sub_8244F6E0, D3DVertexShader_Bind_hook);  // D3DVertexShader_Bind  // N&B sub_82657048
 #endif

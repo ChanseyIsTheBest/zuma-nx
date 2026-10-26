@@ -1318,21 +1318,21 @@ void SetFence(u32 device_va) {
 } // namespace renut::gpu::native
 
 // feedingfrenzy-nx: not linked or not called in XDK 2571: BANJO_RENUT_HOOK(sub_XXXXXXXX, D3DDevice_InsertCallback_hook);  // D3DDevice_InsertCallback  // N&B sub_821FB688
-// feedingfrenzy-nx: not linked or not called in XDK 2571: BANJO_RENUT_HOOK(sub_XXXXXXXX, D3DDevice_AddRef_hook);  // D3DDevice_AddRef  // N&B sub_8264E068
+BANJO_RENUT_HOOK(sub_82121720, D3DDevice_AddRef_hook);  // D3DDevice_AddRef  // zuma-nx: `lwz r10,12(r3); addi; stw` (the device's count at +12) (Feeding Frenzy 82121720)
 // feedingfrenzy-nx: not linked or not called in XDK 2571: BANJO_RENUT_HOOK(sub_XXXXXXXX, D3DDevice_AcquireThreadOwnership_hook);  // D3DDevice_AcquireThreadOwnership  // N&B sub_8264E0D8
 // feedingfrenzy-nx: not linked or not called in XDK 2571: BANJO_RENUT_HOOK(sub_XXXXXXXX, D3DDevice_ReleaseThreadOwnership_hook);  // D3DDevice_ReleaseThreadOwnership  // N&B sub_8264E118
 // feedingfrenzy-nx: not linked or not called in XDK 2571: BANJO_RENUT_HOOK(sub_XXXXXXXX, D3DDevice_GetDeviceCaps_hook);  // D3DDevice_GetDeviceCaps  // N&B sub_82658948
 // feedingfrenzy-nx: not linked or not called in XDK 2571: BANJO_RENUT_HOOK(sub_XXXXXXXX, D3DDevice_GetDisplayMode_hook);  // D3DDevice_GetDisplayMode  // N&B sub_82658960
 // feedingfrenzy-nx: not linked or not called in XDK 2571: BANJO_RENUT_HOOK(sub_XXXXXXXX, D3DDevice_BlockOnFence_hook);  // D3DDevice_BlockOnFence  // N&B sub_8228F3B0
 // feedingfrenzy-nx: not linked or not called in XDK 2571: BANJO_RENUT_HOOK(sub_XXXXXXXX, D3D_SynchronizeToPresentationInterval_hook);  // D3D_SynchronizeToPresentationInterval  // N&B sub_8228A748
-// feedingfrenzy-nx: not linked or not called in XDK 2571: BANJO_RENUT_HOOK(sub_XXXXXXXX, D3DResource_GetDevice_hook);  // D3DResource_GetDevice  // N&B sub_82654D50
+BANJO_RENUT_HOOK(sub_82122900, D3DResource_GetDevice_hook);  // D3DResource_GetDevice  // zuma-nx: (resource, out): *VdGlobalDevice (the import slot 0x8200056C, or 0x82000570 for process type 2), AddRef'd (Feeding Frenzy 82122900)
 #if 0  // bejeweled3-nx: N&B sub_82B6BF60 (D3D_IsFusion) is not linked in Bejeweled 3
 BANJO_RENUT_HOOK(sub_82440C80, D3D_IsFusion_hook);  // D3D_IsFusion  // N&B sub_82B6BF60
 #endif
 // feedingfrenzy-nx: not linked or not called in XDK 2571: BANJO_RENUT_HOOK(sub_XXXXXXXX, D3DDevice_SetGammaRamp_hook);  // D3DDevice_SetGammaRamp  // N&B sub_8264D948
 // feedingfrenzy-nx: not linked or not called in XDK 2571: BANJO_RENUT_HOOK(sub_XXXXXXXX, D3DDevice_SetPWLGamma_hook);  // D3DDevice_SetPWLGamma  // N&B sub_8264DA18
-BANJO_RENUT_HOOK(sub_820BF218, Direct3D_CreateDevice_hook);  // Direct3D_CreateDevice  // feedingfrenzy-nx: called once with (0, 1, 0, 0, &params, &0x82310EE0); fills the device
-// feedingfrenzy-nx: not linked or not called in XDK 2571: BANJO_RENUT_HOOK(sub_XXXXXXXX, D3DDevice_Release_hook);  // D3DDevice_Release  // N&B sub_8264E080
+BANJO_RENUT_HOOK(sub_82121838, Direct3D_CreateDevice_hook);  // Direct3D_CreateDevice  // zuma-nx: called once from sub_820E1DE0 with (0, 1, 0, 0, params, renderer+52); Feeding Frenzy's shape (34 instructions, lis 0x8007, 128, the device size 20608) (Feeding Frenzy 82121838)
+BANJO_RENUT_HOOK(sub_821217E0, D3DDevice_Release_hook);  // D3DDevice_Release  // zuma-nx: the count at +12; at 1 sub_82130050 (engines shut down) and XMemFree (Feeding Frenzy 821217E0)
 // feedingfrenzy-nx: not linked or not called in XDK 2571: BANJO_RENUT_HOOK(sub_XXXXXXXX, D3D_XenonGpu_Initialize_hook);  // D3D_XenonGpu_Initialize  // N&B sub_82663208
 // feedingfrenzy-nx: not linked or not called in XDK 2571: BANJO_RENUT_HOOK(sub_XXXXXXXX, D3D_InitializeApiState_hook);  // D3D_InitializeApiState  // N&B sub_826597C8
 // feedingfrenzy-nx: not linked or not called in XDK 2571: BANJO_RENUT_HOOK(sub_XXXXXXXX, D3D_InitializePresentationParameters_hook);  // D3D_InitializePresentationParameters  // N&B sub_82659AA8

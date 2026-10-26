@@ -23,6 +23,7 @@
 #include <bit>
 #include <cstring>
 #include <mutex>
+#include <unordered_map>
 #include <unordered_set>
 
 #include <rex/hook.h>
@@ -1694,9 +1695,131 @@ u32 D3DResource_GetType_hook(u32 resource) {
   return ResourceType(resource);
 }
 
+// zuma-nx (2026-10-26): XDK 2135 numbers the resource types as the PC's Direct3D 9 does: surface 1, volume 2, texture
+// 3, volume texture 4, cube texture 5, vertex buffer 6, index buffer 7, and 0 for anything else (its D3DResource_GetType
+// sub_82122368: the type in Common bits 16-18, the texture kinds by the dimension of fetch dword 5). N&B's (Renut's)
+// are ResourceType above. The game's D3DX code (sub_8220BBA8, its surface loader) branches on the type and on the
+// Type field of the descriptions, so these three report XDK 2135's numbers for Renut's objects.
+u32 ZumaResourceTypeFromRenut(u32 type) {
+  switch (type) {
+    case 1: return 6;              // vertex buffer
+    case 2: return 7;              // index buffer
+    case 3: case 19: case 20: return 3;  // texture (array and line textures do not exist in XDK 2135)
+    case 4: return 1;              // surface
+    case 16: return 2;             // volume
+    case 17: return 4;             // volume texture
+    case 18: return 5;             // cube texture
+    default: return 0;
+  }
+}
+// zuma-nx (2026-10-26): Zuma's textures and their surfaces stay the game's own XDK 2135 objects. The game's D3DX code
+// (its surface loader sub_8220BBA8 and the functions around it) reads their headers itself: a surface's texture at
+// +44, its level at +32 and face at +24, the texture's fetch constant at +16..+40 (XDK 2135's layout; N&B's, which
+// Renut's code uses, keeps the fetch constant at +0x1C and other fields where 2135's has it). So the game's own
+// CreateTexture, GetSurfaceLevel, GetDesc, GetLevelDesc, GetLevelCount, AddRef, Release and GetType run on them
+// (pure header work and XMemAlloc / XMemFree; Release's fence wait returns at once for the fence 0 these keep).
+// What touches the device goes to Renut through a shadow header per texture (N&B's layout, the same fetch constant,
+// the key of Renut's texture cache): SetTexture and the locks. The game's own locks write cache-flush packets into
+// the device's ring at +0 / +8 (XDK 2135's), which on Renut's device are its dirty masks.
+// Renut's own objects (vertex buffers, declarations, shaders: OwnsHeader or a record) keep Renut's AddRef / Release.
+REX_IMPORT(__imp__sub_82122300, ZumaGuestAddRef, u32(u32));   // D3DResource_AddRef (XDK 2135)
+REX_IMPORT(__imp__sub_82122880, ZumaGuestRelease, u32(u32));  // D3DResource_Release (XDK 2135)
+REX_IMPORT(__imp__sub_82122368, ZumaGuestGetType, u32(u32));  // D3DResource_GetType (XDK 2135)
+
+std::mutex g_zuma_shadow_mutex;
+std::unordered_map<u32, u32> g_zuma_shadows;  // the game's texture -> Renut's shadow header
+
+bool ZumaIsRenutObject(u32 resource) {
+  RecordKind kind;
+  return OwnsHeader(resource) || records::Lookup(resource, &kind);
+}
+
+// The shadow of a game texture, its fetch constant copied again at every use (the game's header may be set up again
+// in place). A shadow is kept for the address once made: a texture made again there reuses it.
+u32 ZumaShadowTexture(u32 texture) {
+  const auto *g = GuestPtr<const be_u32>(texture);
+  if (!g)
+    return 0;
+  std::lock_guard lock(g_zuma_shadow_mutex);
+  u32 &shadow = g_zuma_shadows[texture];
+  if (!shadow) {
+    shadow = AllocHeader(0x34);
+    if (!shadow)
+      return 0;
+    auto *t = GuestPtr<be_u32>(shadow);
+    t[0] = 0x100003u;    // Common: a texture (as SetTextureHeader writes it)
+    t[1] = 1u;           // ReferenceCount
+    t[5] = 0xFFFF0000u;  // BaseFlush
+    t[6] = 0xFFFF0000u;  // MipFlush
+  }
+  auto *t = GuestPtr<be_u32>(shadow);
+  for (u32 i = 0; i < 6; ++i)
+    t[7 + i] = u32(g[4 + i]);  // the fetch constant: XDK 2135's +16 to N&B's +0x1C
+  return shadow;
+}
+
+// A game texture destroyed: Renut's host texture of its shadow goes after the work queued before it.
+void ZumaDropShadow(u32 texture) {
+  u32 shadow = 0;
+  {
+    std::lock_guard lock(g_zuma_shadow_mutex);
+    auto it = g_zuma_shadows.find(texture);
+    if (it == g_zuma_shadows.end())
+      return;
+    shadow = it->second;
+  }
+  render_thread::Queue([shadow] { ReleaseHostTextureLocked(shadow); });
+}
+
+u32 ZumaAddRef(u32 resource) {
+  if (ZumaIsRenutObject(resource))
+    return AddRef(resource);
+  return ZumaGuestAddRef(resource);
+}
+u32 ZumaRelease(u32 resource) {
+  if (ZumaIsRenutObject(resource))
+    return Release(resource);
+  // The game's object. Its type before the release (the header is freed at 0); a texture level's surface releases
+  // its texture through this hook again (the game's Release calls sub_82122880, which is this).
+  const u32 type = ZumaGuestGetType(resource);
+  const u32 count = ZumaGuestRelease(resource);
+  if (!count && type >= 3 && type <= 5)  // texture, volume texture, cube texture
+    ZumaDropShadow(resource);
+  return count;
+}
+u32 ZumaGetType(u32 resource) {
+  if (ZumaIsRenutObject(resource))
+    return ZumaResourceTypeFromRenut(ResourceType(resource));
+  return ZumaGuestGetType(resource);
+}
+
+// D3DTexture_LockRect (texture, level, locked, rect, flags) and UnlockRect (texture, level).
+void ZumaTextureLockRect(u32 texture, u32 level, mapped_u32 locked_rect, mapped_u32 rect, u32 flags) {
+  D3D_Lock2DSurface_hook(ZumaShadowTexture(texture), 0, 0, level, locked_rect, rect, flags);
+}
+void ZumaTextureUnlockRect(u32 texture) {
+  if (const u32 shadow = ZumaShadowTexture(texture))
+    D3DArrayTexture_UnlockRect_hook(shadow);
+}
+// D3DSurface_LockRect (surface, locked, rect, flags) and UnlockRect (surface): a texture level's surface, its texture
+// at +44, face ((+24 >> 26) & 63) and level ((+32 >> 2) & 15), as the game's sub_8212A870 passes them on.
+void ZumaSurfaceLockRect(u32 surface, mapped_u32 locked_rect, mapped_u32 rect, u32 flags) {
+  const u32 texture = LoadU32(surface + 44);
+  D3D_Lock2DSurface_hook(ZumaShadowTexture(texture), 0, (LoadU32(surface + 24) >> 26) & 63,
+                         (LoadU32(surface + 32) >> 2) & 15, locked_rect, rect, flags);
+}
+void ZumaSurfaceUnlockRect(u32 surface) {
+  if (const u32 shadow = ZumaShadowTexture(LoadU32(surface + 44)))
+    D3DArrayTexture_UnlockRect_hook(shadow);
+}
+
 } // namespace
 
 namespace renut::gpu::native {
+// zuma-nx: SetTexture takes the game's texture; Renut's state code sees its shadow (hooks/state.cpp).
+u32 ZumaTextureShadow(u32 texture) {
+  return texture ? ZumaShadowTexture(texture) : 0;
+}
 
 u32 AddRefResource(u32 resource) {
   return AddRef(resource);
@@ -1711,10 +1834,10 @@ u32 CreateTexture(u32 width, u32 height, u32 depth, u32 levels, u32 usage, u32 f
 // feedingfrenzy-nx: not linked or not called in XDK 2571: BANJO_RENUT_HOOK(sub_XXXXXXXX, D3DDevice_CreateSurface_hook);  // D3DDevice_CreateSurface  // N&B sub_82655FE8
 // feedingfrenzy-nx: not linked or not called in XDK 2571: BANJO_RENUT_HOOK(sub_XXXXXXXX, D3DResource_Destroy_hook);  // D3DResource_Destroy  // N&B sub_822084F0
 // feedingfrenzy-nx: not linked or not called in XDK 2571: BANJO_RENUT_HOOK(sub_XXXXXXXX, D3D_UnlockResource_hook);  // D3D_UnlockResource  // N&B sub_82654C28
-BANJO_RENUT_HOOK(sub_820BCF18, D3DVertexBuffer_Unlock_hook);  // D3DVertexBuffer_Unlock  // feedingfrenzy-nx: (vb) after each sprite's vertices
-BANJO_RENUT_HOOK(sub_820B2588, D3DSurface_UnlockRect_hook);  // D3DSurface_UnlockRect  // feedingfrenzy-nx: the texture unlock through the surface's texture (+20); one game call site
+BANJO_RENUT_HOOK(sub_82122A88, D3DVertexBuffer_Unlock_hook);  // D3DVertexBuffer_Unlock  // zuma-nx: reads +12 (4 instructions, Feeding Frenzy's reads +20) (Feeding Frenzy 82122A88)
+BANJO_RENUT_HOOK(sub_82128958, ZumaSurfaceUnlockRect);  // D3DSurface_UnlockRect  // zuma-nx: (surface): its texture's (+44) shadow (adapter) (Feeding Frenzy 82128958)
 // feedingfrenzy-nx: not linked or not called in XDK 2571: BANJO_RENUT_HOOK(sub_XXXXXXXX, LockResource_hook);  // D3D_LockResource  // N&B sub_82654968
-BANJO_RENUT_HOOK(sub_820BCEB8, ZumaVertexBufferLock);  // D3DVertexBuffer_Lock  // feedingfrenzy-nx: returns base + offset (adapter)
+BANJO_RENUT_HOOK(sub_82122A18, ZumaVertexBufferLock);  // D3DVertexBuffer_Lock  // zuma-nx: returns base + offset (adapter, as Feeding Frenzy's) (Feeding Frenzy 82122A18)
 // feedingfrenzy-nx: not linked or not called in XDK 2571: BANJO_RENUT_HOOK(sub_XXXXXXXX, D3DIndexBuffer_Lock_hook);  // D3DIndexBuffer_Lock  // N&B sub_82654F90
 // feedingfrenzy-nx: not linked or not called in XDK 2571: BANJO_RENUT_HOOK(sub_XXXXXXXX, D3D_LockSurface_hook);  // D3D_LockSurface  // N&B sub_82655838
 // feedingfrenzy-nx: not linked or not called in XDK 2571: BANJO_RENUT_HOOK(sub_XXXXXXXX, D3D_Lock2DSurface_hook);  // D3D_Lock2DSurface  // N&B sub_82655908
@@ -1724,27 +1847,23 @@ BANJO_RENUT_HOOK(sub_82427F40, D3D_Lock3DSurface_hook);  // D3D_Lock3DSurface  /
 #if 0  // bejeweled3-nx: N&B sub_82655DB0 (D3DArrayTexture_LockRect) is not linked in Bejeweled 3
 BANJO_RENUT_HOOK(sub_82428BF0, D3DArrayTexture_LockRect_hook);  // D3DArrayTexture_LockRect  // N&B sub_82655DB0
 #endif
-BANJO_RENUT_HOOK(sub_820B3D58, D3DLineTexture_LockRect_hook);  // D3DLineTexture_LockRect  // feedingfrenzy-nx: LockRect (texture, level, locked, rect, flags) -> 820B3778
-#if 0  // bejeweled3-nx: N&B sub_82656150 (D3DSurface_LockRect) is not linked in Bejeweled 3
-BANJO_RENUT_HOOK(sub_824290C0, D3DSurface_LockRect_hook);  // D3DSurface_LockRect  // N&B sub_82656150
-#endif
+BANJO_RENUT_HOOK(sub_8212A280, ZumaTextureLockRect);  // D3DLineTexture_LockRect  // zuma-nx: LockRect (texture, level, locked, rect, flags), on the shadow (adapter) (Feeding Frenzy 8212A280)
+BANJO_RENUT_HOOK(sub_8212A870, ZumaSurfaceLockRect);  // D3DSurface_LockRect  // zuma-nx: (surface, locked, rect, flags): its texture (+44), face (+24) and level (+32), on the texture's shadow (adapter) (Feeding Frenzy 8212A870)
 #if 0  // bejeweled3-nx: N&B sub_826561C0 (D3DVolume_LockBox) is not linked in Bejeweled 3
 BANJO_RENUT_HOOK(sub_82429150, D3DVolume_LockBox_hook);  // D3DVolume_LockBox  // N&B sub_826561C0
 #endif
 #if 0  // bejeweled3-nx: N&B sub_82655EA0 (D3D_Lock3DSurface_Thunk) is not linked in Bejeweled 3
 BANJO_RENUT_HOOK(sub_82428CD0, D3D_Lock3DSurface_hook);  // D3D_Lock3DSurface_Thunk  // N&B sub_82655EA0
 #endif
-// feedingfrenzy-nx: not linked or not called in XDK 2571: BANJO_RENUT_HOOK(sub_XXXXXXXX, D3DResource_AddRef_hook);  // D3DResource_AddRef  // N&B sub_822088B0
-BANJO_RENUT_HOOK(sub_820BCD90, D3DResource_Release_hook);  // D3DResource_Release  // feedingfrenzy-nx: decrements Common, destroys at 0
-// feedingfrenzy-nx: not linked or not called in XDK 2571: BANJO_RENUT_HOOK(sub_XXXXXXXX, D3DResource_GetType_hook);  // D3DResource_GetType  // N&B sub_82208110
-#if 0  // bejeweled3-nx: N&B sub_822082A0 (D3DSurface_GetDesc) is not linked in Bejeweled 3
-BANJO_RENUT_HOOK(sub_82429028, D3DSurface_GetDesc_hook);  // D3DSurface_GetDesc  // N&B sub_822082A0
-#endif
+BANJO_RENUT_HOOK(sub_82122300, ZumaAddRef);  // D3DResource_AddRef  // zuma-nx: the game's (the count in Common's low byte) or Renut's for its own objects (adapter) (Feeding Frenzy 82122300)
+BANJO_RENUT_HOOK(sub_82122880, ZumaRelease);  // D3DResource_Release  // zuma-nx: the game's, then its texture's shadow dropped at 0; or Renut's for its own objects (adapter) (Feeding Frenzy 82122880)
+BANJO_RENUT_HOOK(sub_82122368, ZumaGetType);  // D3DResource_GetType  // zuma-nx: the game's (the type in Common bits 16-18); Renut's objects in XDK 2135's numbers (adapter) (Feeding Frenzy 82122368)
+// zuma-nx: the game's own code (sub_8212A818, XDK 2135's headers): BANJO_RENUT_HOOK(sub_XXXXXXXX, ZumaSurfaceGetDesc);  // D3DSurface_GetDesc
 #if 0  // bejeweled3-nx: N&B sub_82656178 (D3DVolume_GetDesc) is not linked in Bejeweled 3
 BANJO_RENUT_HOOK(sub_82429108, D3DVolume_GetDesc_hook);  // D3DVolume_GetDesc  // N&B sub_82656178
 #endif
 // feedingfrenzy-nx: not linked or not called in XDK 2571: BANJO_RENUT_HOOK(sub_XXXXXXXX, Get2DSurfaceDesc);  // D3D_Get2DSurfaceDesc  // N&B sub_822081A0
-BANJO_RENUT_HOOK(sub_820B3D50, Get2DSurfaceDesc);  // D3D_Get2DSurfaceDesc_Thunk  // feedingfrenzy-nx: GetLevelDesc (texture, level, desc) before each sprite
+// zuma-nx: the game's own code (sub_8212A1D0, XDK 2135's headers): BANJO_RENUT_HOOK(sub_XXXXXXXX, ZumaGet2DSurfaceDesc);  // D3D_Get2DSurfaceDesc_Thunk
 #if 0  // bejeweled3-nx: N&B sub_82655738 (D3D_Get3DSurfaceDesc) is not linked in Bejeweled 3
 BANJO_RENUT_HOOK(sub_82427818, Get3DSurfaceDesc);  // D3D_Get3DSurfaceDesc  // N&B sub_82655738
 #endif
@@ -1753,24 +1872,22 @@ BANJO_RENUT_HOOK(sub_82428C18, Get3DSurfaceDesc);  // D3D_Get3DSurfaceDesc_Thunk
 #endif
 // feedingfrenzy-nx: not linked or not called in XDK 2571: BANJO_RENUT_HOOK(sub_XXXXXXXX, LevelLayout_hook);  // D3D_GetLevelLayout  // N&B sub_82207D48
 // feedingfrenzy-nx: not linked or not called in XDK 2571: BANJO_RENUT_HOOK(sub_XXXXXXXX, SubresourceLayout_hook);  // D3D_GetSubresourceLayout  // N&B sub_82207680
-// feedingfrenzy-nx: not linked or not called in XDK 2571: BANJO_RENUT_HOOK(sub_XXXXXXXX, D3DBaseTexture_GetLevelCount_hook);  // D3DBaseTexture_GetLevelCount  // N&B sub_821EF890
+// zuma-nx: the game's own code (sub_8212A1C0, XDK 2135's headers): BANJO_RENUT_HOOK(sub_XXXXXXXX, D3DBaseTexture_GetLevelCount_hook);  // D3DBaseTexture_GetLevelCount
 #if 0  // bejeweled3-nx: N&B sub_82655DA0 (D3DArrayTexture_GetArraySize) is not linked in Bejeweled 3
 BANJO_RENUT_HOOK(sub_824264B0, D3DArrayTexture_GetArraySize_hook);  // D3DArrayTexture_GetArraySize  // N&B sub_82655DA0
 #endif
-BANJO_RENUT_HOOK(sub_820B2570, D3DArrayTexture_UnlockRect_hook);  // D3DArrayTexture_UnlockRect  // feedingfrenzy-nx: UnlockRect (texture): flushes +28 / +44 pages
+BANJO_RENUT_HOOK(sub_82128940, ZumaTextureUnlockRect);  // D3DArrayTexture_UnlockRect  // zuma-nx: UnlockRect (texture, level), on the shadow (adapter) (Feeding Frenzy 82128940)
 // feedingfrenzy-nx: not linked or not called in XDK 2571: BANJO_RENUT_HOOK(sub_XXXXXXXX, D3DConstantBuffer_Unlock_hook);  // D3DConstantBuffer_Unlock  // N&B sub_822693A0
-#if 0  // bejeweled3-nx: N&B sub_82208928 (D3DTexture_GetSurfaceLevel) is not linked in Bejeweled 3
-BANJO_RENUT_HOOK(sub_82428958, D3DTexture_GetSurfaceLevel_hook);  // D3DTexture_GetSurfaceLevel  // N&B sub_82208928
-#endif
+// zuma-nx: the game's own code (sub_8212A1D8, XDK 2135's headers): BANJO_RENUT_HOOK(sub_XXXXXXXX, D3DTexture_GetSurfaceLevel_hook);  // D3DTexture_GetSurfaceLevel
 #if 0  // bejeweled3-nx: N&B sub_82655CD0 (D3DCubeTexture_GetCubeMapSurface) is not linked in Bejeweled 3
 BANJO_RENUT_HOOK(sub_82428A50, D3DCubeTexture_GetCubeMapSurface_hook);  // D3DCubeTexture_GetCubeMapSurface  // N&B sub_82655CD0
 #endif
 #if 0  // bejeweled3-nx: N&B sub_82655DD8 (D3DVolumeTexture_GetVolumeLevel) is not linked in Bejeweled 3
 BANJO_RENUT_HOOK(sub_82428C20, D3DVolumeTexture_GetVolumeLevel_hook);  // D3DVolumeTexture_GetVolumeLevel  // N&B sub_82655DD8
 #endif
-BANJO_RENUT_HOOK(sub_820BCE08, D3DDevice_CreateVertexBuffer_hook);  // D3DDevice_CreateVertexBuffer  // feedingfrenzy-nx: (length, usage, pool): (4 MB, 8, 0) once
+BANJO_RENUT_HOOK(sub_82122968, D3DDevice_CreateVertexBuffer_hook);  // D3DDevice_CreateVertexBuffer  // zuma-nx: (length, usage, pool): Feeding Frenzy's shape, fields 8 lower (Feeding Frenzy 82122968)
 // feedingfrenzy-nx: not linked or not called in XDK 2571: BANJO_RENUT_HOOK(sub_XXXXXXXX, D3DDevice_CreateIndexBuffer_hook);  // D3DDevice_CreateIndexBuffer  // N&B sub_82654EE0
-BANJO_RENUT_HOOK(sub_820B3D70, D3DDevice_CreateTexture_hook);  // D3DDevice_CreateTexture  // feedingfrenzy-nx: (width, height, depth, levels, usage, format, pool, type 3)
+// zuma-nx: the game's own code (sub_8212A3F0, XDK 2135's headers): BANJO_RENUT_HOOK(sub_XXXXXXXX, D3DDevice_CreateTexture_hook);  // D3DDevice_CreateTexture
 // feedingfrenzy-nx: not linked or not called in XDK 2571: BANJO_RENUT_HOOK(sub_XXXXXXXX, SetTextureHeader_hook);  // D3D_SetTextureHeader  // N&B sub_8228E990
 // feedingfrenzy-nx: not linked or not called in XDK 2571: BANJO_RENUT_HOOK(sub_XXXXXXXX, FindTextureSize_hook);  // D3D_FindTextureSize  // N&B sub_82287E60
 // feedingfrenzy-nx: not linked or not called in XDK 2571: BANJO_RENUT_HOOK(sub_XXXXXXXX, GetMaxMipLevels_hook);  // D3D_GetMaxMipLevels  // N&B sub_826554B8

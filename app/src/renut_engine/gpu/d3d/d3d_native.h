@@ -185,6 +185,8 @@ u32 AddRefResource(u32 resource);
 // D3DDevice_CreateTexture(Width, Height, Depth, Levels, Usage, D3DFORMAT, D3DPOOL, D3DRESOURCETYPE): the new texture,
 // or 0 (peggle1-nx: for the automatic front buffer).
 u32 CreateTexture(u32 width, u32 height, u32 depth, u32 levels, u32 usage, u32 format, u32 pool, u32 type);
+// zuma-nx: the shadow header (N&B's layout) of one of the game's XDK 2135 textures, made at its first use; 0 for 0.
+u32 ZumaTextureShadow(u32 texture);
 
 // Device state (d3d_native_state.cpp).
 void SetRenderState(Device device, u32 state, u32 value);

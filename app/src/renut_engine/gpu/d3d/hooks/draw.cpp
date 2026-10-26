@@ -565,7 +565,7 @@ void D3DDevice_SetPixelShader_hook(u32 device, u32 shader) {
 
 } // namespace
 
-BANJO_RENUT_HOOK(sub_820B4118, D3DDevice_DrawVertices_hook);  // D3DDevice_DrawVertices  // feedingfrenzy-nx: (dev, 6 = triangle strip, 0, 4): each sprite
+BANJO_RENUT_HOOK(sub_8212AA88, D3DDevice_DrawVertices_hook);  // D3DDevice_DrawVertices  // zuma-nx: Feeding Frenzy's 820B4118 shape (144 instructions against 138, the same immediates 26 / 25 / 8450) (Feeding Frenzy 8212AA88)
 // feedingfrenzy-nx: not linked or not called in XDK 2571: BANJO_RENUT_HOOK(sub_XXXXXXXX, D3DDevice_DrawIndexedVertices_hook);  // D3DDevice_DrawIndexedVertices  // N&B sub_826567C8
 #if 0  // bejeweled3-nx: N&B sub_82230838 (D3DDevice_DrawIndexedTessellatedVertices) is not linked in Bejeweled 3
 BANJO_RENUT_HOOK(sub_8243C578, D3DDevice_DrawIndexedTessellatedVertices_hook);  // D3DDevice_DrawIndexedTessellatedVertices  // N&B sub_82230838
@@ -578,7 +578,7 @@ BANJO_RENUT_HOOK(sub_8243B818, D3DDevice_DrawIndexedVerticesUP_hook);  // D3DDev
 #endif
 // feedingfrenzy-nx: not linked or not called in XDK 2571: BANJO_RENUT_HOOK(sub_XXXXXXXX, D3DDevice_BeginVertices_hook);  // D3DDevice_BeginVertices  // N&B sub_8222CC50
 // feedingfrenzy-nx: not linked or not called in XDK 2571: BANJO_RENUT_HOOK(sub_XXXXXXXX, D3DDevice_ClearF_hook);  // D3DDevice_ClearF  // N&B sub_822811A0
-BANJO_RENUT_HOOK(sub_820B2428, D3DDevice_Clear_hook);  // D3DDevice_Clear  // feedingfrenzy-nx: once a frame; (dev, count, rects, flags, color, z in f1, -, stencil in r9)
+BANJO_RENUT_HOOK(sub_821287F8, D3DDevice_Clear_hook);  // D3DDevice_Clear  // zuma-nx: anchor (0.98) of Feeding Frenzy's 820B2428 (Feeding Frenzy 821287F8)
 // peggle1-nx: Peggle 1's D3DDevice_Resolve has N&B's signature and the game calls it directly (Peggle 2's was a
 // wrapper around an internal resolve with two more arguments).
 // bejeweled3-nx: Bejeweled 3's is Peggle 2's again: the public D3DDevice_Resolve, N&B's signature, is the 19-insn
@@ -593,6 +593,6 @@ BANJO_RENUT_HOOK(sub_8243A128, D3DDevice_EndTiling_hook);  // D3DDevice_EndTilin
 #endif
 // feedingfrenzy-nx: not linked or not called in XDK 2571: BANJO_RENUT_HOOK(sub_XXXXXXXX, D3DDevice_BeginExport_hook);  // D3DDevice_BeginExport  // N&B sub_82269618
 // feedingfrenzy-nx: not linked or not called in XDK 2571: BANJO_RENUT_HOOK(sub_XXXXXXXX, D3DDevice_EndExport_hook);  // D3DDevice_EndExport  // N&B sub_822693B0
-BANJO_RENUT_HOOK_SHARED(sub_820B17B0, D3DDevice_Present_hook);  // D3DDevice_Present  // feedingfrenzy-nx: once a frame; calls Swap sub_820B1260 (the only VdSwap caller)
-BANJO_RENUT_HOOK(sub_820B6158, D3DDevice_SetVertexShader_hook);  // D3DDevice_SetVertexShader  // feedingfrenzy-nx: (dev, shader): stw +13364; b 0x820B6008
-BANJO_RENUT_HOOK(sub_820B5E18, D3DDevice_SetPixelShader_hook);  // D3DDevice_SetPixelShader  // feedingfrenzy-nx: (dev, shader): +12712, then the shader+56 literal constants
+BANJO_RENUT_HOOK_SHARED(sub_821221C0, D3DDevice_Present_hook);  // D3DDevice_Present  // zuma-nx: copies the resolve rectangles, resolves, calls Swap sub_82121BE0 (the only VdSwap caller) (Feeding Frenzy 821221C0)
+BANJO_RENUT_HOOK(sub_82124A50, D3DDevice_SetVertexShader_hook);  // D3DDevice_SetVertexShader  // zuma-nx: (dev, shader): AddRef, the old one released, stored at +20456, then sub_821248F8 (Feeding Frenzy's 820B6008 body) (Feeding Frenzy 82124A50)
+BANJO_RENUT_HOOK(sub_821246E0, D3DDevice_SetPixelShader_hook);  // D3DDevice_SetPixelShader  // zuma-nx: (dev, shader) at +12944, then the literal constants (memcpy) (Feeding Frenzy 821246E0)

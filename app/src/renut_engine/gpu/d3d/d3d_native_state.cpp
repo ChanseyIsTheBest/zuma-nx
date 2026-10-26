@@ -914,20 +914,32 @@ u32 GetSamplerState(Device d, u32 s, u32 state) {
 // and setter go into the device's dispatch tables (the game's inline
 // SetRenderState calls through them, and so reaches the hooked setters), and
 // the state is set to its default; then every sampler's texture is unset.
+// zuma-nx (2026-10-26): Zuma's game reaches every state function only through the device's dispatch tables, at XDK
+// 2135's offsets: its D3D_InitializeApiState (sub_8212F960) copies 97 render-state records {getter, setter, default}
+// from 0x823924B8 to +0x60 (setters) and +0x234 (getters), and 20 sampler-state records from 0x82392948 to +0x1E4 and
+// +0x3B8. N&B's tables (+0x40 / +0x224 / +0x1D4 / +0x3B8, 101 render states) are not where this game looks. The words
+// are the game's own function addresses, each hooked by Renut (hooks/state.cpp; tools/renut_hook_remap_zuma.py).
+constexpr u32 kZumaRenderStateTable = 0x823924B8, kZumaRenderStates = 97;
+constexpr u32 kZumaSamplerStateTable = 0x82392948, kZumaSamplerStates = 20;
+constexpr u32 kZumaSetRenderStateCall = 0x60, kZumaGetRenderStateCall = 0x234;
+constexpr u32 kZumaSetSamplerStateCall = 0x1E4, kZumaGetSamplerStateCall = 0x3B8;
+
 void InitializeStateTables(Device device) {
   if (!device)
     return;
-  for (u32 i = 0; i < kRenderStates; ++i) {
-    device.SetW(off::SetRenderStateCall + i * 4, TableWord(kRenderStateTable, i, 1));
-    device.SetW(off::GetRenderStateCall + i * 4, TableWord(kRenderStateTable, i, 0));
+  for (u32 i = 0; i < kRenderStates; ++i)
     kRenderStateFns[i](device, RenderStateDefault(i));
+  for (u32 i = 0; i < kZumaRenderStates; ++i) {
+    device.SetW(kZumaSetRenderStateCall + i * 4, TableWord(kZumaRenderStateTable, i, 1));
+    device.SetW(kZumaGetRenderStateCall + i * 4, TableWord(kZumaRenderStateTable, i, 0));
+  }
+  for (u32 i = 0; i < kZumaSamplerStates; ++i) {
+    device.SetW(kZumaSetSamplerStateCall + i * 4, TableWord(kZumaSamplerStateTable, i, 1));
+    device.SetW(kZumaGetSamplerStateCall + i * 4, TableWord(kZumaSamplerStateTable, i, 0));
   }
   for (u32 sampler = 0; sampler < kTextureSamplers; ++sampler) {
-    for (u32 i = 0; i < kSamplerStates; ++i) {
-      device.SetW(off::SetSamplerStateCall + i * 4, TableWord(kSamplerStateTable, i, 1));
-      device.SetW(off::GetSamplerStateCall + i * 4, TableWord(kSamplerStateTable, i, 0));
+    for (u32 i = 0; i < kSamplerStates; ++i)
       kSamplerStateFns[i](device, sampler, SamplerStateDefault(i));
-    }
     SetTexture(device, sampler, 0);
   }
 }

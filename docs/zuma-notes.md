@@ -97,3 +97,61 @@ update), extracted to `D:\peggle 2\zuma`:
   presentation interval 1 (every vblank), so no 60 fps forcing is needed. The audio plays (SDL: no missing frames);
   the generated-code self-checks 0 differences. The log has no unimplemented call; only the splash variant
   `_Logo_PopCap_and_Oberon.jpg`, which the game tries first, is missing (as on the 360).
+
+## Renut's renderer at Zuma's addresses (2026-10-26/27)
+
+The renderer's Direct3D layer is Feeding Frenzy's (Bejeweled 3's, N&B's layout); its hook table was moved to XDK
+2135's addresses with `tools/renut_hook_remap_zuma.py` (evidence in the tool and here).
+
+- **The trace** (`app/src/zuma_d3d_trace.cpp`, feedingfrenzy2-nx's with Zuma's addresses; PC test aid, off by default):
+  the Direct3D library is `0x82121000-0x8213B000`; game code calls 82 of its functions (`out/zuma_d3d_api.txt`), 56 of
+  them by game frame 2,400 (`trace1`). The device (`0x40003C80`) is created once (`CreateDevice(0, 1, 0, 0, params,
+  renderer+52)`, from `sub_820E1DE0`); a frame is Clear, the sprites (vertex buffer Lock of 0x80 bytes, Unlock,
+  SetStreamSource, SetVertexDeclaration, SetPixelShader, SetTexture, DrawVertices(6, 0, 4)), Present.
+- **The API functions** were paired with Feeding Frenzy's by an anchor alignment of the two libraries
+  (`out/renut_map/anchor.txt`) and by reading both: CreateDevice `sub_82121838`, Clear `sub_821287F8`, Present
+  `sub_821221C0` (the frame hook's shared address), DrawVertices `sub_8212AA88`, the shader and declaration creators and
+  setters, the vertex buffer's (Lock returns base + offset, Feeding Frenzy's adapter), the shader constants B / I.
+  XDK 2135's Set* functions keep references on what they set (AddRef the new, release the old); Renut's do not.
+- **The states:** the game never calls a state function directly. Its D3D_InitializeApiState (`sub_8212F960`) copies
+  97 render-state records {getter, setter, default} from `0x823924B8` into the device at `+0x60` (setters) / `+0x234`
+  (getters), 20 sampler-state records from `0x82392948` into `+0x1E4` / `+0x3B8`, and the game calls through those
+  (N&B: 101 render states at `+0x40` / `+0x224`). Renut's `InitializeStateTables` now writes the game's table words at
+  XDK 2135's offsets; every one of those functions is hooked. Against N&B's order (the template index of Renut's
+  hooks): render states 0-56 are the same, Zuma's 57 is a state N&B lacks (`sub_8212C260`: the value in four device
+  words; its own hook keeps it on the host), N&B's 57-95 are Zuma's 58-96, N&B's 96-100 (HiZ, LastPixel, LineWidth,
+  Buffer2Frames) do not exist; the samplers are in the same order (`out/renut_map/zuma_state_table.txt`). The getters
+  of Wrap10-15 are the game's shared `li r3,0; blr` (`sub_821939F0`), left alone. An alignment of the two state blocks
+  (`out/renut_map/state_align.txt`) gave the same functions but for 18, where the table decides.
+- **The presentation interval:** the game's `SetRenderState_PresentInterval` (`sub_8212C8F0`: `stw r4,13772(r3)`) asks
+  for 1. With Renut's renderer the interval is Renut's word (`0x36A0` of its device), which the frame hook reads.
+- **The game's own textures.** XDK 2135's resource headers are not N&B's: the resource head is 12 bytes (Common with the
+  reference count in its low byte and the type in bits 16-18, the fence at +4), a texture is 40 bytes with its fetch
+  constant at +16, a vertex buffer 20 bytes with its fetch constant at +12, a texture level's surface 64 bytes (its
+  texture at +44, face at +24, level at +32). The game's D3DX code (its surface loader `sub_8220BBA8` and the
+  functions around it, which Zuma's image loading goes through) reads those fields itself, and the game's own lock
+  writes cache-flush packets into the device's ring at +0 / +8 (on Renut's device, its dirty masks). So:
+  - the game's own CreateTexture, GetSurfaceLevel, GetDesc, GetLevelDesc, GetLevelCount, GetType, AddRef and Release
+    run on its textures and surfaces (pure header work and XMemAlloc / XMemFree; the destroy's fence wait returns at
+    once for the fence 0 these keep, and only render targets free EDRAM);
+  - what touches the device goes to Renut through a **shadow header** per texture (N&B's layout, a copy of the fetch
+    constant; the key of Renut's texture cache): SetTexture, the texture's and the surface's LockRect / UnlockRect;
+    when the game's Release destroys a texture, Renut drops the shadow's host texture;
+  - Renut's own objects (vertex buffers: `OwnsHeader`; declarations and shaders: records) keep Renut's AddRef and
+    Release; GetType reports them in XDK 2135's numbers (surface 1 ... index buffer 7, N&B's 4 ... 2);
+  - the device's own count (XDK 2135 at +12) goes to Renut's AddRef / Release / GetDevice, so the game's GetDevice /
+    Release pairs cannot shut the device down.
+- **Guest data:** the build qword `0x82392A38` (`0x0002000008574000`, XDK 2135), the `VdGlobalDevice` slot `0x8200056C`,
+  the caps `0x82016688` (GetDeviceCaps `sub_82136DB8`; Feeding Frenzy's but for five words), the format table
+  `0x82015E38`, XMemFree `sub_820CEAA8`, GetCurrentThreadId `sub_820CDF50`.
+- **Shaders:** the game compiles 7 at start (5 pixel, 2 vertex) with XDK 2135's compiler: version 0x0E containers, as
+  Feeding Frenzy's (`container_0e.h` converts them). The trace build wrote them; named by XXH3 they are
+  `out/renut_shader_dump` (`out/zuma_shaders`).
+- **PC, Renut on Vulkan** (`renut3`, 90 s): the splash, title, main menu, Temple of Zukulkan, the instructions and Level
+  1-1 as with the emulated GPU (the menu compared side by side: the same image), 60 game frames a second, no shader
+  missing, no warning.
+- **"Unlock Full Game"** stays in the main menu: the license is the full game's (`license_mask = 1`: the game's check
+  `sub_820F3168` leaves its trial byte 0, and IsTrial `sub_820F3160` returns 0 to every caller, the menu's
+  `sub_820A2DB0` too). In the full game the menu marks that button with its flags +31 / +32 and links the menu's
+  navigation past it (`100 -> 92`); the button is still drawn (its widget has no image of its own for that state).
+  The game's behaviour, not the port's.
