@@ -224,3 +224,17 @@ docs/optimising-functions.md, as in both Feeding Frenzy ports.
     the run), the matrix product 223 -> 67 (-70 %).
 - Delivered: the optimised NRO (`6ed8b747...`) in `out/dist/dev_20261027_zuma/zuma-nx/`, replacing the first one; ELF
   and map `out/nx/elf/zuma_dev_opt_20261027.*`. A development build (no LTO, no PGO).
+
+## Languages (2026-10-27)
+
+- **The game's eight:** `Resources/resources.xpr` holds `Images/<name>` and `Fonts/<name>` for English, Japanese,
+  German, French, Spanish, Italian, Korean and Chinese (traditional: `_cht` fonts); no Portuguese. The game names its
+  language from XGetLanguage (`sub_820F3960`, a virtual method: 1 English, 2 Japanese, 3 German, 4 French, 5 Spanish,
+  6 Italian, 7 Korean, 8 Chinese, anything else English; the strings at `0x82011A88`, `0x82003B08`, ...).
+- **The port's option** (`zuma_language`, from Bejeweled 3's) offered en, ja, de, fr, es, it and pt: now en, ja, de, fr,
+  es, it, ko and zh (XDK languages 1-8). An empty option follows the system: the Switch's Korean gives ko, both
+  Chinese scripts zh, Portuguese en (Windows: the same by the display language).
+- **PC runs** `lang_<xx>` (40 s each, `REX_ZUMA_LANGUAGE=<xx>`; `out/renut_tests/languages.jpg`): each of the eight
+  shows its own title prompt ("DRÜCKEN SIE A, UM ZU STARTEN", "A POUR COMMENCER", the Japanese, Korean and Chinese
+  ones), main menu ("Willkommen bei Zuma!", "¡Bienvenido a Zuma!", "Benvenuto a Zuma!") and adventure screen ("TEMPEL
+  VON ZUKULKAN", the Japanese, Korean and Chinese names).

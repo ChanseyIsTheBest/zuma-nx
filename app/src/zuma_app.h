@@ -39,8 +39,8 @@
 
 // The game's language (the user's request, 2026-10-13): see OnPostInitLogging.
 REXCVAR_DEFINE_STRING(zuma_language, "", "Zuma",
-                      "The game's language: en, ja, de, fr, es, it or pt; empty = the system's language (English when "
-                      "the game does not have it)");
+                      "The game's language: en, ja, de, fr, es, it, ko or zh; empty = the system's language (English "
+                      "when the game does not have it)");
 REXCVAR_DECLARE(uint32_t, user_language);  // the SDK's (xam_user.cpp)
 
 // Where the native renderer writes the shaders its library does not have (raw microcode + rewritten containers), so
@@ -94,9 +94,11 @@ class ZumaApp : public rex::ReXApp {
     if (rex::cvar::GetFlagSource("gpu_plugin") == rex::cvar::Source::kDefault) {
       rex::cvar::SetFlagByName("gpu_plugin", "xenos");
     }
-    // zuma_language: the game's language by name (main.rsb holds the string tables of en, de, es, fr, it, ja and
-    // pt: the seven copies of <String id="293">, "Play Classic"). It sets the SDK's user_language, which XGetLanguage
-    // reports to the game (the XDK's language numbers).
+    // zuma_language: the game's language by name. zuma-nx (2026-10-27): Resources/resources.xpr holds the folders
+    // Images/<name> and Fonts/<name> for English, Japanese, German, French, Spanish, Italian, Korean and Chinese
+    // (traditional: _cht); the game picks the name from XGetLanguage (sub_820F3960: 1 English ... 8 Chinese, anything
+    // else English).
+    // It sets the SDK's user_language, which XGetLanguage reports to the game (the XDK's language numbers).
     // Empty: the system's language (zuma_language.cpp), unless user_language was set to another than English.
     std::string language = REXCVAR_GET(zuma_language);
     if (language.empty() && REXCVAR_GET(user_language) == 1) {
@@ -106,7 +108,7 @@ class ZumaApp : public rex::ReXApp {
     }
     if (!language.empty()) {
       static const std::pair<const char*, const char*> kLanguages[] = {
-          {"en", "1"}, {"ja", "2"}, {"de", "3"}, {"fr", "4"}, {"es", "5"}, {"it", "6"}, {"pt", "9"}};
+          {"en", "1"}, {"ja", "2"}, {"de", "3"}, {"fr", "4"}, {"es", "5"}, {"it", "6"}, {"ko", "7"}, {"zh", "8"}};
       const char* id = nullptr;
       for (const auto& [name, value] : kLanguages) {
         if (language.size() >= 2 && std::tolower(static_cast<unsigned char>(language[0])) == name[0] &&
@@ -118,7 +120,7 @@ class ZumaApp : public rex::ReXApp {
         rex::cvar::SetFlagByName("user_language", id);
         REXLOG_INFO("[language] \"{}\": user_language = {}", language, id);
       } else {
-        REXLOG_WARN("[language] zuma_language = \"{}\" is not one of en, ja, de, fr, es, it, pt: unchanged",
+        REXLOG_WARN("[language] zuma_language = \"{}\" is not one of en, ja, de, fr, es, it, ko, zh: unchanged",
                     language);
       }
     }

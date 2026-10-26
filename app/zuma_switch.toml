@@ -2,7 +2,7 @@
 # there is none; edit it there (delete it to get the defaults back). Everything else is built into the NRO.
 
 # The game's language: "" (the console's system language; English when the game does not have it), en, ja, de,
-# fr, es, it or pt.
+# fr, es, it, ko or zh.
 zuma_language = ""
 
 # Controllers: face buttons by position, as on the Xbox 360 pad the game was made for: the bottom button (B on Switch

@@ -40,9 +40,12 @@ std::string FromSystem(std::string* system_name) {
     case SetLanguage_IT: return "it";
     case SetLanguage_ES:
     case SetLanguage_ES419: return "es";
-    case SetLanguage_PT:
-    case SetLanguage_PTBR: return "pt";
-    default: return "en";  // English (US, GB), Chinese, Korean, Dutch, Russian: Bejeweled 3 has none of these
+    case SetLanguage_KO: return "ko";
+    case SetLanguage_ZHCN:
+    case SetLanguage_ZHTW:
+    case SetLanguage_ZHHANS:
+    case SetLanguage_ZHHANT: return "zh";
+    default: return "en";  // English (US, GB), Portuguese, Dutch, Russian: Zuma has none of the others
   }
 #elif defined(_WIN32)
   const LANGID id = GetUserDefaultUILanguage();
@@ -57,7 +60,8 @@ std::string FromSystem(std::string* system_name) {
     case LANG_FRENCH: return "fr";
     case LANG_SPANISH: return "es";
     case LANG_ITALIAN: return "it";
-    case LANG_PORTUGUESE: return "pt";
+    case LANG_KOREAN: return "ko";
+    case LANG_CHINESE: return "zh";
     default: return "en";
   }
 #else
