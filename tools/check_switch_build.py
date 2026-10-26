@@ -42,7 +42,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # feedingfrenzy-nx (2026-10-26, the first Switch build): Feeding Frenzy's one, the CRT memcpy sub_822CD480 (XDK 2571's,
 # not Peggle 2's): three `b .` in the guest code (0x822CD644, 0x822CD774, 0x822CD884), each after a copy loop's
 # `bdnz` whose exit is the `bge` before it (the counter never runs out): a trap the CRT left in.
-KNOWN_HALTS = ['sub_822CD480']
+# zuma-nx (2026-10-26): Zuma's memcpy sub_82113040 is Feeding Frenzy's byte for byte: the same three `b .`
+# (0x82113204, 0x82113334, 0x82113444).
+KNOWN_HALTS = ['sub_82113040']
 # Vector fused multiply-adds that come from the guest's OWN fused operations (fmadds -> std::fma), two of them paired
 # into one vector instruction by GCC (exact: each lane is the same fused operation). Checked in the disassembly:
 # fcvtl to double, fmla v.2d, fcvtn back, as double(float(std::fma(a, b, c))) twice.
@@ -82,6 +84,22 @@ def FusedMaddFunctions(gen):
         for n, body in texts.items():
             if n not in out and any(('inl_' + d) in body or ('REX_INL(' + d + ')') in body for d in out):
                 out.add(n)
+    return out
+
+
+def MaddCounts(gen):
+    """name -> how many rex::ppc::vmx_madd_ps calls its generated body has (the functions of FusedMaddFunctions)."""
+    import glob
+    import re
+    out = {}
+    for path in glob.glob(os.path.join(gen, '*_recomp.*.cpp')):
+        src = open(path, encoding='utf-8', errors='replace').read()
+        heads = list(re.finditer(r'^DEFINE_REX_FUNC\((sub_[0-9A-F]{8})\)', src, re.M))
+        for i, m in enumerate(heads):
+            end = heads[i + 1].start() if i + 1 < len(heads) else len(src)
+            n = src.count('vmx_madd_ps', m.end(), end)
+            if n:
+                out[m.group(1)] = n
     return out
 
 
@@ -226,6 +244,25 @@ def main():
           f'{len(vmx_fused)} functions ({len(fused)} functions of the generated code use the helper)')
     for f in explained:
         del vector_fma[f]
+    # zuma-nx (2026-10-26, the 1.0.0 LTO build): link-time optimisation inlines a callee across files, so a
+    # thunk that tail-calls a function with vmx_madd_ps gets that function's vector fused multiply-adds
+    # (sub_822E4DE8 and sub_822E4DF8: `lis; addi; vector load; b sub_822E4C28`, 5 fmla each, sub_822E4C28's 5
+    # vmx_madd_ps). Accepted when the function's generated body reaches functions with the helper through at most two
+    # direct calls and has no more vector fused multiply-adds than those functions' vmx_madd_ps.
+    lto_inlined = []
+    if vector_fma:
+        calls = generated_calls()
+        madds = MaddCounts(os.path.join(ROOT, 'app', 'generated', 'default'))
+        for f, n in list(vector_fma.items()):
+            name = f.replace('__imp__', '')
+            reach = set(calls.get(name, ()))
+            reach |= {d for c in list(reach) for d in calls.get(c, ())}
+            helpers = sorted(c for c in reach if c in fused)
+            if helpers and n <= sum(madds.get(c, 0) for c in helpers):
+                lto_inlined.append(f'{name} x{n} (inlines {", ".join(helpers)})')
+                del vector_fma[f]
+    if lto_inlined:
+        print(f'vector fused multiply-adds of vmx_fused_madd inlined by LTO: {"; ".join(lto_inlined)}')
     print(f'fused multiply-adds in recompiled functions: scalar {scalar_fma} (the guest\'s own), vector '
           f'{sum(vector_fma.values())} in {len(vector_fma)} functions (must be 0)'
           + (f'; known pairs of the guest\'s own std::fma: {", ".join(f"{k} x{v}" for k, v in explained.items())}'

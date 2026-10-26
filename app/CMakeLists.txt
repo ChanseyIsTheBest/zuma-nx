@@ -591,7 +591,8 @@ if(REXGLUE_PLATFORM_SWITCH)
     # tools/switch_hot_functions.py and the console profiler's samples. It must come from the same build as the NRO.
     target_link_options(zuma PRIVATE "LINKER:-Map=${CMAKE_BINARY_DIR}/zuma.map")
     # The homebrew menu's entry: name, author, version and icon (app/icon.jpg, 256x256 JPEG, when the project has one).
-    set(ZUMA_VERSION "1.0.0" CACHE STRING "NRO display version" FORCE)
+    # zuma-nx: 0.1.0 for the development builds (1.0.0 is a release's).
+    set(ZUMA_VERSION "0.1.0" CACHE STRING "NRO display version" FORCE)
     # feedingfrenzy-nx (2026-10-26): no icon in the repository. Development builds take out/icon_dev.jpg (the game's
     # own title_image.png scaled to 256x256: game data, never committed); out/icon.jpg, when there is one, is the
     # release's.
@@ -604,7 +605,7 @@ if(REXGLUE_PLATFORM_SWITCH)
         set(_zuma_icon ICON "${CMAKE_CURRENT_SOURCE_DIR}/../out/icon_dev.jpg")
     endif()
     rexglue_switch_add_nro(zuma
-        NAME "Feeding Frenzy"
+        NAME "Zuma"
         AUTHOR "ChanseyIsTheBest"
         VERSION "${ZUMA_VERSION}"
         ${_zuma_icon})

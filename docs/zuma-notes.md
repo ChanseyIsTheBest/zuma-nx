@@ -155,3 +155,28 @@ The renderer's Direct3D layer is Feeding Frenzy's (Bejeweled 3's, N&B's layout);
   `sub_820A2DB0` too). In the full game the menu marks that button with its flags +31 / +32 and links the menu's
   navigation past it (`100 -> 92`); the button is still drawn (its widget has no image of its own for that state).
   The game's behaviour, not the port's.
+
+## The first Switch build (2026-10-27)
+
+- **Shaders:** XenosRecomp with `BANJO_HLSL_OVERRIDE` / `BANJO_DEKO3D_SPIRV_DIR` (docs/building.md, section 3), then
+  `deko3d_shaders.py` (7 of 7 compile with uam: 2 vertex of 2 KB, 5 pixel of 1 KB), `deko3d_glsl_opt.py --check`,
+  `deko3d_shader_package.py` (13 KB), `renut_switch_shader_cache.py`. All 7 are the game's run-time shaders, so the
+  NRO carries them all.
+- **Build:** `tools/win/build_switch.ps1 -Pgo none -Define "ZUMA_SWITCH_LTO=OFF"` (a development build: no LTO, no
+  PGO). NRO 23.8 MB, "Zuma" 0.1.0 with the game's `title_image.png` (64x64) scaled to 256x256 as the development icon
+  (`out/icon_dev.jpg`; game data, not committed). The tomls' headers name Zuma (the code generator's manifest with this
+  game's default.xex and Title Update #2).
+- **`tools/check_switch_build.py`:** all checks passed, with:
+  - KNOWN_HALTS: memcpy `sub_82113040` (Feeding Frenzy's byte for byte: its three `b .` at 0x82113204, 0x82113334,
+    0x82113444);
+  - STREAMING_COPIES: none (as in Feeding Frenzy);
+  - the vector fused multiply-adds of `vmx_fused_madd`: 135 in 28 functions, the generated code's `vmx_madd_ps` sites;
+  - feedingfrenzy2-nx's later rule for the vector fused multiply-adds LTO inlines from a callee (for the release).
+- **Ryujinx** (`emu1`, 150 s; SD `switch\zuma-nx` a junction to `out/emu_sd/zuma-nx` in the Peggle data folder;
+  `tools/build_asset_pack.py` made the game pack, 28 files with `default.xexp`, 26 MB; `out/zuma_emu_script.txt`: A to
+  the level, then the stick swept with a shot every second): the title, Temple of Zukulkan, Level 1-1 played (matches,
+  "COMBO X2", the score to 1,140, a lost chain and the level again); 59.3-60.0 game frames a second in most 10 s
+  windows (53.9 and 55.5 in the last two, the busiest part of the level), Renut's render thread 1.2-5.3 ms a frame, no
+  shader missing, no error in the log.
+- **Delivered:** `out/dist/dev_20261027_zuma/zuma-nx/` (NRO `e6416a95...`, the game pack, README.txt); ELF and map
+  `out/nx/elf/zuma_dev_20261027_0045.*`.

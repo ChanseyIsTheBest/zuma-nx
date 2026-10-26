@@ -1,12 +1,13 @@
-# ReXGlue recompilation manifest for Feeding Frenzy (Xbox Live Arcade, title 584107F1, default.xex).
+# ReXGlue recompilation manifest for Zuma (Xbox Live Arcade, title 584107EF, default.xex with Title Update #2).
 #
 # Run tools/codegen.ps1 (Windows): it calls `rexglue codegen zuma_manifest.toml` and the post-codegen steps. The
 # project name sets the prefix of everything generated: generated/default/zuma_{init,pch,funcs}.h,
 # zuma_recomp.N.cpp, and the CMake target zuma_recomp built by CMakeLists.txt.
 #
-# default.xex (tools/xex_info.py, 2026-10-26): image base 0x82000000, entry point 0x820AD418, image size 0x00370000,
-# XDK 2.0.2571, original PE name XeZuma.pe, version 0.0.1.1. It imports only xam.xex and xboxkrnl.exe;
-# the game has no other code module. The user's package has no title update or DLC.
+# default.xex (tools/xex_info.py, 2026-10-26): image base 0x82000000, image size 0x004D0000, XDK 2.0.2135, version
+# 0.0.1.1. It imports only xam.xex and xboxkrnl.exe; the game has no other code module. Title Update #2
+# (default.xexp next to it in assets/game_root) makes it 0.0.3.1: the generator and the game apply it themselves, and
+# every address in this project is the patched image's (entry point 0x820CE650).
 
 [project]
 name = "zuma"
