@@ -3,4 +3,25 @@
 # (rex_profile (24).log and newlogs/logs/rex/rex_profile.log, all threads), localized by tools/localize_native.py --bulk
 # with write-backs of only the changed registers. Left out: 12 tiny leaves, 25 addresses our sources mention.
 # feedingfrenzy-nx (2026-10-26): the next 65 of the same profile (36th to 100th), so 100 in all with localized.txt.
-# zuma-nx (2026-10-26): empty until a profile of Zuma (Feeding Frenzy's entries removed).
+# zuma-nx (2026-10-27): the other 21 eligible of the same profile (36th to 56th): every sampled generated function but the tiny leaves.
+82082860 4 samples: all guest threads
+820D51C0 4 samples: all guest threads
+820E43D0 4 samples: all guest threads
+82093C70 4 samples: all guest threads
+820E2800 4 samples: all guest threads
+820F30A0 4 samples: all guest threads
+8211A730 4 samples: all guest threads
+820F3BD0 4 samples: all guest threads
+820DE910 4 samples: all guest threads
+8236F268 4 samples: all guest threads
+822F8798 4 samples: all guest threads
+8232E508 4 samples: all guest threads
+82330F08 4 samples: all guest threads
+822FC9D0 4 samples: all guest threads
+82332F70 4 samples: all guest threads
+820DE988 3 samples: all guest threads
+82114918 3 samples: all guest threads
+820DCDD0 3 samples: all guest threads
+8236E060 3 samples: all guest threads
+8235D310 3 samples: all guest threads
+823281B8 3 samples: all guest threads

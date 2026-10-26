@@ -13,4 +13,39 @@
 # the user's two console profiles of Lightning (logs/rex/rex_profile.log of the 08:42 NRO and rex_profile (23).log of
 # the 09:29 NRO, reports 4 on; tools/switch_hot_functions.py with each build's map), samples of both summed:
 # feedingfrenzy-nx (2026-10-26, the user: "machine optimise around the top 100", "just use data from the emulator"): the hottest 35 generated functions of the Ryujinx profile out/renut_tests/emu/prof1 (all guest threads, 300 s of play).
-# zuma-nx (2026-10-26): empty until a profile of Zuma (Feeding Frenzy's entries removed).
+# zuma-nx (2026-10-27, the user: "optimise zuma's functions in the same manner you did feeding frenzy 1 and 2's"): the hottest 35 eligible generated functions of the Ryujinx profile out/renut_tests/emu/prof1 (all guest threads, reports 4 on: Level 1-1 with the stick and A, 330 s; map out/nx/elf/zuma_dev_20261027_0045.map). Only 62 generated functions were sampled at all, 56 of them eligible. sub_82073B70 (std::string::compare, the hottest) and sub_820E4300 (a 3x3 matrix product, the main thread's third) are hand-written (h_*.h); their copies are the reference. sub_8236BB48 (the second hottest: 1,781 instructions of the audio thread's mixing, 293 stores) keeps its copy: under docs/hand-natives.md every store stays, and its samples are not the frame's. Left out: the 6 tiny leaves (820EC018, 820F3020, 8232CB48, 8208EC08, 822ED298, 82382A28).
+82073B70 205 samples: all guest threads
+8236BB48 194 samples: all guest threads
+82346CA8 77 samples: all guest threads
+82071BD8 76 samples: all guest threads
+82341668 57 samples: all guest threads
+820E4300 51 samples: all guest threads
+820FD908 45 samples: all guest threads
+82327EF8 34 samples: all guest threads
+82333080 28 samples: all guest threads
+82070438 24 samples: all guest threads
+8232E5E0 24 samples: all guest threads
+82111830 23 samples: all guest threads
+82071D68 22 samples: all guest threads
+82313058 15 samples: all guest threads
+823290F0 14 samples: all guest threads
+820704C0 12 samples: all guest threads
+8208CAF8 12 samples: all guest threads
+820E4368 12 samples: all guest threads
+82070970 12 samples: all guest threads
+820FA590 11 samples: all guest threads
+82071E50 11 samples: all guest threads
+820FABD0 8 samples: all guest threads
+820D15B8 8 samples: all guest threads
+820E3B10 8 samples: all guest threads
+8236F750 8 samples: all guest threads
+82370D48 8 samples: all guest threads
+8236AD38 8 samples: all guest threads
+82340E78 8 samples: all guest threads
+82345B78 8 samples: all guest threads
+82340A30 8 samples: all guest threads
+820949A0 7 samples: all guest threads
+820E1990 7 samples: all guest threads
+82073300 4 samples: all guest threads
+822F7A50 4 samples: all guest threads
+820E4658 4 samples: all guest threads

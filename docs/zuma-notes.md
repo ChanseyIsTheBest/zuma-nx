@@ -180,3 +180,47 @@ The renderer's Direct3D layer is Feeding Frenzy's (Bejeweled 3's, N&B's layout);
   shader missing, no error in the log.
 - **Delivered:** `out/dist/dev_20261027_zuma/zuma-nx/` (NRO `e6416a95...`, the game pack, README.txt); ELF and map
   `out/nx/elf/zuma_dev_20261027_0045.*`.
+
+## Optimising the hot functions (2026-10-27, from the emulator)
+
+The user: "optimise zuma's functions in the same manner you did feeding frenzy 1 and 2's". The method is
+docs/optimising-functions.md, as in both Feeding Frenzy ports.
+
+- **Profile** (Ryujinx `prof1`: 330 s, Level 1-1 played with `out/zuma_emu_script.txt`, `switch_profile_report` /
+  `switch_profile_stacks`; `out/renut_tests/emu/prof1/rex_profile.log`, map `out/nx/elf/zuma_dev_20261027_0045.map`;
+  `tools/switch_hot_functions.py --top 5000 --from-report 4`, all guest threads): Zuma is light. The game's main thread
+  is 5.6 % of the busy samples (3-4 ms of a 16.7 ms frame), and only **62** generated functions were sampled at all;
+  56 are eligible (the other 6 are tiny leaves the generator already inlines). On the main thread: the string compare
+  `sub_82073B70` 10.1 %, memcpy (already native) 5.3 %, `sub_82071BD8` 3.8 %, `sub_820E4300` 2.5 %. The second hottest
+  overall, `sub_8236BB48`, is on the audio side (1,781 instructions, not the frame's).
+- **Hand-written natives:**
+  - `h_82073B70.h`, MSVC's `std::string::compare(pos, n, s, count)` (205 samples, the hottest): the bytes compared
+    eight at a time on host memory, the first difference from the XOR; the throw and ranges the guest mapping splits
+    (at 0xE0000000, past 4 GB) run the copy, decided before the native's one store (the back chain). Its copy may call
+    (the throw), so its hook is unguarded; in verify mode the native checks every call itself against the copy (the
+    registers the copy writes back, lr, the stored word).
+  - `h_820E4300.h`, a 3x3 matrix product (51 samples; the main thread's third): Bejeweled 3's h_822DFF80 method with
+    Zuma's own order of operations (two loops: fmuls of the k=1 term, then fmadds with k=0, then k=2): both inputs
+    read once, the nine results stored together; an overlap with an input takes the copy.
+  - Not hand-written: `sub_82071BD8` (`std::string::_Grow`: its common path already makes no call; the copy is near
+    the minimum) and `sub_8236BB48` (under docs/hand-natives.md every one of its 293 stores stays, and it is the audio
+    thread's).
+- **Localized copies:** all 56 eligible (35 in `localized.txt`, 21 in `localized_bulk.txt`). **Write-backs of the
+  changed registers only:** 2,737 register stores kept of 5,654 in the 49 copies it limits (51 % removed); smart sync at
+  62 of 216 call sites. Seven copies keep every write-back (five jump tables, an unaligned vector store loop, one use of
+  XER); 16 inline tiny callees.
+- **Checks:**
+  - PC verify mode (`verify1`, Renut, Level 1-1 played through a lost life, 150 s): 42.8 million native calls, every
+    leaf copy's and the C runtime natives' checked, the string compare's 4.0 million and the matrix product's 1.7
+    million among them: 0 differences. 60 fps even in verify mode.
+  - `tools/check_switch_build.py`: all checks passed (the memcpy halts, 135 vector fused multiply-adds).
+- **Measured:**
+  - Ryujinx, the same NRO with the 56 natives on (`prof2`) and their keys off (`prof3`), the same script and length:
+    the main thread's median 3.14 -> 2.78 ms a game frame; 54.7 -> 57.5 fps on average (19 -> 8 of 30 windows below
+    58; Ryujinx's dips are the emulator host's). Per function the emulator's samples (which land on function entries)
+    disagree with themselves: the matrix product 54 -> 24 and `_Grow` 73 -> 55, but the string compare 185 -> 276.
+  - So the two hand-written ones were measured on the PC with the same script and length (`out/renut_tests/pcab`,
+    the PC profiler at 4,000 Hz, call counters on): the string compare 175 -> 146 samples (-17 %; 3.7 million calls in
+    the run), the matrix product 223 -> 67 (-70 %).
+- Delivered: the optimised NRO (`6ed8b747...`) in `out/dist/dev_20261027_zuma/zuma-nx/`, replacing the first one; ELF
+  and map `out/nx/elf/zuma_dev_opt_20261027.*`. A development build (no LTO, no PGO).
