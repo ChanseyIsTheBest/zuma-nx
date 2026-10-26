@@ -23,6 +23,7 @@
 
 #include "zuma_capture.h"
 #include "zuma_pc_profiler.h"
+#include "zuma_touch.h"
 #if ZUMA_NATIVE_RENDERER
 #include "me/me_native_system.h"
 #endif
@@ -191,7 +192,18 @@ void PaceRenutSwap(uint32_t interval) {
 // only caller of VdSwap; its other caller sub_82139C38 is not called). Renut's renderer replaces Present (its Swap is
 // native, so the guest's never runs): this hook shares the address with it (BANJO_RENUT_HOOK_SHARED, draw.cpp).
 extern "C" REX_FUNC(__imp__sub_821221C0);
+#if REX_PLATFORM_WIN32
+namespace zuma::diag {
+void MemDiffFrame(const uint8_t* mem, uint64_t frame);  // zuma_memdiff.cpp (test aid)
+}  // namespace zuma::diag
+#endif
+
 REX_HOOK_RAW(sub_821221C0) {  // D3DDevice_Present
+  // The taps since the previous frame, on the game's thread between two frames (zuma_touch.cpp).
+  zuma::touch::Dispatch(ctx, base);
+#if REX_PLATFORM_WIN32
+  zuma::diag::MemDiffFrame(base, g_zuma_game_frames.load(std::memory_order_relaxed));
+#endif
   // zuma-nx (2026-10-26): with Renut's renderer the game's SetRenderState_PresentInterval is Renut's, which keeps the
   // interval in its own device layout (d3d_native_state.cpp kPresentInterval, 0x36A0), not at XDK 2135's +13772.
   uint32_t interval_offset = kDeviceIntervalOffset;

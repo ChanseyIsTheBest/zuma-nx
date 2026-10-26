@@ -30,6 +30,7 @@
 #include "zuma_enhancements.h"
 #include "zuma_input_script.h"
 #include "zuma_language.h"
+#include "zuma_touch.h"
 #include "zuma_pc_profiler.h"
 #include "zuma_pgo.h"
 
@@ -256,6 +257,20 @@ class ZumaApp : public rex::ReXApp {
     return rex::ReXApp::OnFinalizePaths(defaults, std::move(resume));
   }
 #endif
+
+  // The PC: the left mouse button is the game's taps (zuma_touch; the Switch reads its touch screen itself).
+  void OnMouseDown(rex::ui::MouseEvent& e) override {
+    if (e.button() == rex::ui::MouseEvent::Button::kLeft) ForwardMouse(zuma::touch::MouseKind::kDown, e);
+  }
+  void OnMouseUp(rex::ui::MouseEvent& e) override {
+    if (e.button() == rex::ui::MouseEvent::Button::kLeft) ForwardMouse(zuma::touch::MouseKind::kUp, e);
+  }
+  void ForwardMouse(zuma::touch::MouseKind kind, const rex::ui::MouseEvent& e) {
+    const auto* w = window();
+    if (!w || !w->GetActualPhysicalWidth() || !w->GetActualPhysicalHeight()) return;
+    zuma::touch::OnWindowMouse(kind, float(e.x()) / float(w->GetActualPhysicalWidth()),
+                               float(e.y()) / float(w->GetActualPhysicalHeight()));
+  }
 
   void OnShutdown() override {
 #if ZUMA_RENUT_RENDERER

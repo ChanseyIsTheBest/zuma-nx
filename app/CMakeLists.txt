@@ -73,6 +73,8 @@ set(ZUMA_SOURCES
     src/zuma_frame_hooks.cpp
     # Scripted controller for unattended test runs (cvar zuma_input_script).
     src/zuma_input_script.cpp
+    # Touch controls (2026-10-27): the touch screen / the PC's mouse as taps on the game (zuma_touch).
+    src/zuma_touch.cpp
     # Logs every C++ exception the game throws (type and message) before the SDK's RaiseException ends the game.
     src/zuma_throw_log.cpp
     # Windows: logs fatal host exceptions the SDK does not report (illegal instruction, ...) with module + offset.
@@ -146,6 +148,8 @@ if(WIN32)
     if(NOT ZUMA_RENUT_RENDERER)
         list(APPEND ZUMA_SOURCES src/zuma_d3d_trace.cpp)
     endif()
+    # zuma-nx (2026-10-27): the guest memory diff of three game frames, a PC test aid (zuma_diag_memdiff, off).
+    list(APPEND ZUMA_SOURCES src/zuma_memdiff.cpp)
     add_executable(zuma WIN32 ${ZUMA_SOURCES})
 else()
     add_executable(zuma ${ZUMA_SOURCES})
