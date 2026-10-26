@@ -1527,6 +1527,13 @@ void XHostThread::Execute() {
   // Let the kernel know we are starting.
   kernel_state_->OnThreadExecute(this);
 
+  // zuma-nx (2026-10-26): a host thread runs guest code too (the audio system calls the game's render driver callback on
+  // its worker through this thread state), so its FPSCR cache gets the host policy the guest threads get in Execute
+  // above. Without it csr stayed 0, and the first enableFlushMode wrote 0 | FlushMask to MXCSR: every SSE exception
+  // unmasked. Zuma's callback (sub_8237B5C8, vector code) then trapped on an inexact vcfsx (0xC000008F at its first
+  // audio frame); the Feeding Frenzy ports' callbacks never switched flush mode on.
+  thread_state_->context()->fpscr.InitHost();
+
   int ret = host_fn_();
 
   // Exit.

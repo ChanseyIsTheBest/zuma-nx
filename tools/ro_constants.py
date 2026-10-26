@@ -115,6 +115,10 @@ def read_only_ranges(image):
         sys.exit('ERROR (post-codegen patch): ro_constants: the image dump is not a PE image')
     sections, opt_size = struct.unpack_from('<H', image, pe + 6)[0], struct.unpack_from('<H', image, pe + 20)[0]
     base = struct.unpack_from('<I', image, pe + 24 + 28)[0]
+    # zuma-nx (2026-10-26): Zuma's XDK 2135 image keeps the linker's 0x00400000 in its PE header; the XEX loads it at
+    # its original base 0x82000000, where its code is linked (every Xbox 360 executable's).
+    if base < 0x80000000:
+        base = 0x82000000
     table = pe + 24 + opt_size
     ranges = []
     for i in range(sections):

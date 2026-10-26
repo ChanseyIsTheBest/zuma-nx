@@ -19,7 +19,6 @@
 // Hand-written natives (C runtime routines).
 #include "cpu/hot/n_825F0AE0.h"
 #include "cpu/hot/n_825F10B0.h"
-#include "cpu/hot/n_822CCD58.h"
 #include "cpu/hot/n_822CEDF0.h"
 #include "cpu/hot/n_822CFFE0.h"
 
@@ -376,28 +375,24 @@ void Check(Hook& h, PPCContext& ctx, uint8_t* base) {
 // non-volatile registers, as assembly routines leave their scratch registers undefined), then the localized copies
 // (tools/localize_native.py --list app/src/cpu/hot/localized.txt writes their hook lines).
 
-// C runtime (feedingfrenzy-nx, 2026-10-26; tools/crt_signatures.py scan and tools/guest_code_hash.py):
-//   memset at 0x822CCC40 is byte for byte Peggle 2's 0x825F10B0 (160 bytes, FNV-1a 64 0x54D201DC8A21DABA, the code
-//   check of n_825F10B0.h), so its native applies here;
-//   memcpy at 0x822CD480 is another version (1056 bytes; Peggle 2's is 1160) with the same contract: r3 saved at
-//   -8(r1) and returned, a forward copy (no load or store below its pointers), no dcbz, 32-bit sizes and compares; so
-//   n_825F0AE0's native (which declines the overlaps a forward copy smears and the 4 GB wraps) applies under this
-//   routine's own size and hash (2026-10-26, the emulator profile: seventh).
-// The emulator profile's other C runtime routines (out/renut_tests/emu/prof1, docs/zuma-notes.md):
-//   strstr sub_822CCD58 (39 % of the main thread's samples), _stricmp sub_822CFFE0, memmove sub_822CEDF0.
-ZUMA_HOT_HOOK(822CD480, zuma_cpu_native_memcpy, "Native CRT memcpy (sub_822CD480): host memcpy/memmove",
+// C runtime (zuma-nx, 2026-10-26; tools/crt_signatures.py scan and a byte comparison with Feeding Frenzy's image):
+//   memset at 0x82112990 is byte for byte Peggle 2's 0x825F10B0 (160 bytes, FNV-1a 64 0x54D201DC8A21DABA);
+//   memcpy at 0x82113040 is byte for byte Feeding Frenzy's sub_822CD480 (1056 bytes, 0xA7EAD6E565BDE9F2: XDK 2571's
+//   version with n_825F0AE0's contract, feedingfrenzy-nx's check);
+//   memmove at 0x821147D0 is Feeding Frenzy's sub_822CEDF0 (the same 48 instructions; its tail call now reaches memcpy
+//   sub_82113040), so n_822CEDF0.h applies under this routine's own hash;
+//   _stricmp at 0x82114C00 is byte for byte Feeding Frenzy's sub_822CFFE0 (88 bytes, the same hash).
+// Feeding Frenzy's strstr native has no match in this executable (not even with the branches masked).
+ZUMA_HOT_HOOK(82113040, zuma_cpu_native_memcpy, "Native CRT memcpy (sub_82113040): host memcpy/memmove",
                  zuma::hot::n_825F0AE0, &zuma::hot::n_825F0AE0::Writes, zuma::hot::Cmp::kReturn, 1056,
                  0xA7EAD6E565BDE9F2ull)
-ZUMA_HOT_HOOK(822CCD58, zuma_cpu_native_strstr, "Native CRT strstr (sub_822CCD58): host strstr",
-                 zuma::hot::n_822CCD58, &zuma::hot::n_822CCD58::Writes, zuma::hot::Cmp::kReturn, 128,
-                 0x5294550D483FD945ull)
-ZUMA_HOT_HOOK(822CFFE0, zuma_cpu_native_stricmp, "Native CRT _stricmp (sub_822CFFE0)",
+ZUMA_HOT_HOOK(82114C00, zuma_cpu_native_stricmp, "Native CRT _stricmp (sub_82114C00)",
                  zuma::hot::n_822CFFE0, &zuma::hot::n_822CFFE0::Writes, zuma::hot::Cmp::kReturn, 88,
                  0x214392DE394E0692ull)
-ZUMA_HOT_HOOK(822CEDF0, zuma_cpu_native_memmove, "Native CRT memmove (sub_822CEDF0): host memmove",
+ZUMA_HOT_HOOK(821147D0, zuma_cpu_native_memmove, "Native CRT memmove (sub_821147D0): host memmove",
                  zuma::hot::n_822CEDF0, &zuma::hot::n_822CEDF0::Writes, zuma::hot::Cmp::kReturn, 192,
-                 0xA554986653AAE325ull)
-ZUMA_HOT_HOOK(822CCC40, zuma_cpu_native_memset, "Native CRT memset (sub_822CCC40): host memset",
+                 0xB05B1A780BDD6783ull)
+ZUMA_HOT_HOOK(82112990, zuma_cpu_native_memset, "Native CRT memset (sub_82112990): host memset",
                  zuma::hot::n_825F10B0, &zuma::hot::n_825F10B0::Writes, zuma::hot::Cmp::kReturn, 160,
                  0x54D201DC8A21DABAull)
 

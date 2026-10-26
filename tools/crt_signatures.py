@@ -50,6 +50,8 @@ class Image:
             sys.exit('crt_signatures: %s is not a PE image dump' % path)
         sections, opt = struct.unpack_from('<H', d, pe + 6)[0], struct.unpack_from('<H', d, pe + 20)[0]
         self.base = struct.unpack_from('<I', d, pe + 24 + 28)[0]
+        if self.base < 0x80000000:  # zuma-nx: XDK 2135's PE header keeps 0x00400000; the XEX loads at 0x82000000
+            self.base = 0x82000000
         self.code = []  # (rva, size) of executable sections
         table = pe + 24 + opt
         for i in range(sections):

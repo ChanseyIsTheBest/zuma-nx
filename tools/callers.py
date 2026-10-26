@@ -19,7 +19,7 @@ from jump_stubs import stub_at  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASE = 0x82000000
-EXEC = [(0x82140000, 0x8219626C), (0x82196400, 0x82BC6F8C), (0x82BC7000, 0x82F778A2)]
+EXEC = [(0x82070000, 0x823855AC)]  # zuma-nx: the .text section (Peggle 2's three ranges before)
 
 
 def function_starts(gen):

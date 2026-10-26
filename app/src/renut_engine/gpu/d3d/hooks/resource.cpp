@@ -49,7 +49,8 @@ using namespace renut::gpu;
 // bejeweled3-nx: Bejeweled 3's XMemFree is sub_825F8670, the XDK default (6 insns, the same as Peggle 2's
 // sub_823189E8: physical -> XPhysicalFree, else the heap); CreateDevice, Release, CDevice_Uninitialize, ... call it
 // at the aligned positions (Peggle 1 sub_82463228: 12 aligned call sites).
-REX_IMPORT(__imp__sub_820AD808, GameXMemFree, void(u32, u32));  // feedingfrenzy-nx: XMemFree sub_820AD808 (Bejeweled 3's with other branch targets; N&B sub_822399D8)
+// zuma-nx (2026-10-26): XMemFree is sub_820CEAA8 (Feeding Frenzy's 7 instructions with other branch targets).
+REX_IMPORT(__imp__sub_820CEAA8, GameXMemFree, void(u32, u32));  // feedingfrenzy-nx: sub_820AD808 (N&B sub_822399D8)
 // The kernel's physical memory, as XPhysicalAlloc / XPhysicalFree use it.
 REX_IMPORT(__imp__MmAllocatePhysicalMemoryEx, MmAllocatePhysicalMemoryEx,
            u32(u32, u32, u32, u32, u32, u32));
@@ -126,7 +127,7 @@ void FreePhysical(u32 va) {
 
 // The GPU format table (word_820052F8): per D3D format low 6 bits, bits per
 // pixel in the low byte, flags in the high one.
-constexpr u32 kFormatTable = 0x8200C670;  // feedingfrenzy-nx (see d3d_native_state.cpp)
+constexpr u32 kFormatTable = 0x82015E38;  // zuma-nx (see d3d_native_state.cpp); feedingfrenzy-nx 0x8200C670
 
 u16 FormatTableEntry(u32 format) {
   const auto *table = GuestPtr<const be_u16>(kFormatTable);

@@ -66,7 +66,8 @@ using namespace renut::gpu;
 // bejeweled3-nx: Bejeweled 3's GetCurrentThreadId is sub_825F8690 (lwz r11,256(r13); lwz r3,332(r11); blr: the same 3
 // insns as N&B sub_822402A8, Peggle 2 sub_8260BF88 and Peggle 1 sub_824639B0; AcquireThreadOwnership sub_822FEFA8 and
 // the CreateDevice part sub_82311428 call it at the aligned positions).
-REX_IMPORT(__imp__sub_822A5FA0, GuestGetCurrentThreadId, u32());  // feedingfrenzy-nx: GetCurrentThreadId sub_822A5FA0 (the same 3 instructions; N&B sub_822402A8)
+// zuma-nx (2026-10-26): GetCurrentThreadId is sub_820CDF50 (`lwz r11,256(r13); lwz r3,332(r11); blr`).
+REX_IMPORT(__imp__sub_820CDF50, GuestGetCurrentThreadId, u32());  // feedingfrenzy-nx: sub_822A5FA0 (N&B sub_822402A8)
 REX_IMPORT(__imp__RtlInitializeCriticalSection, RtlInitializeCriticalSection, void(u32));
 REX_IMPORT(__imp__KeQueryPerformanceFrequency, KeQueryPerformanceFrequency, u32());
 REX_IMPORT(__imp__KeGetCurrentProcessType, KeGetCurrentProcessType, u32());
@@ -116,7 +117,9 @@ constexpr u32 kDeviceTypeNoHardware = 2;
 constexpr u32 kDeviceOffsetGlobalQword = 11008;
 // feedingfrenzy-nx (2026-10-26): 0x822F20D8 holds 0x000200000A0B4001 (XDK 2.0.2571; `lis r11,-32209;
 // ld r11,8408(r11)` in the CreateDevice path).
-constexpr u32 kGlobalQwordVa = 0x822F20D8;
+// zuma-nx (2026-10-26): 0x82392A38 holds 0x0002000008574000 (XDK 2.0.2135; `ld r11,10808(r11)` at 0x8212F930 in the
+// CreateDevice path).
+constexpr u32 kGlobalQwordVa = 0x82392A38;  // feedingfrenzy-nx: 0x822F20D8
 // Hardware-path fields: two critical sections, QueryPerformanceFrequency and
 // its reciprocal as floats, and 41 words set to -1.
 constexpr u32 kDeviceOffsetCriticalSection0 = 15332;
@@ -130,7 +133,8 @@ constexpr u32 kDeviceOffsetTitleMinusOne = 23776;
 // VdGlobalDevice, as Peggle 2's does (0x82000614 holds 0xFFCAD000, VdGlobalXamDevice, for process type 2).
 // N&B 0x820007FC, Peggle 1 0x830B0CDC.
 // feedingfrenzy-nx (2026-10-26): 0x82000574, the image's only word holding 0xFFCAE000.
-constexpr u32 kVdGlobalDeviceImportSlot = 0x82000574;
+// zuma-nx (2026-10-26): 0x8200056C, the image's only word holding 0xFFCAE000.
+constexpr u32 kVdGlobalDeviceImportSlot = 0x8200056C;  // feedingfrenzy-nx: 0x82000574
 
 constexpr u32 kE_OUTOFMEMORY = 0x8007000Eu;
 
@@ -1007,7 +1011,9 @@ constexpr u32 kDeviceOffsetOwnerThread = 0x2B08;
 // li r5,304; b memcpy` (Peggle 2 0x8207AA80, Peggle 1 0x82070C28, N&B 0x82183B00); its 304 bytes are identical to
 // Peggle 2's and N&B's.
 // feedingfrenzy-nx (2026-10-26): Direct3D_GetDeviceCaps (sub_820BCF28) copies its 304 bytes from 0x8200C8D0.
-constexpr u32 kDeviceCapsVa = 0x8200C8D0;
+// zuma-nx (2026-10-26): Direct3D_GetDeviceCaps (sub_82136DB8) copies its 304 bytes from 0x82016688 (Feeding Frenzy's
+// but for five words: the point size and guard band limits, and one capability bit).
+constexpr u32 kDeviceCapsVa = 0x82016688;  // feedingfrenzy-nx: 0x8200C8D0
 constexpr u32 kDeviceCapsSize = 0x130;
 // Non-zero on a Fusion GPU. bejeweled3-nx: Bejeweled 3 does not link D3D_IsFusion (nor did Peggle 2), and in Peggle 1
 // nothing else reads the flag, so it has no Bejeweled 3 address; the IsFusion hook is in #if 0 and this (Peggle 1's

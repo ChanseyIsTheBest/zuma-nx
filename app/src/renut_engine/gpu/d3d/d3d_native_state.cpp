@@ -1403,7 +1403,8 @@ namespace {
 // depth format (word_820052F8).
 // bejeweled3-nx: 0x82001620 (GetLevelLayout sub_823018B0, GetSubresourceLayout, Lock2DSurface, FindTextureSize, ...:
 // `lis r11,-32256; addi r11,r11,5664`, 7 aligned uses where Peggle 2 has 0x8207A590); 128 bytes identical to N&B's.
-constexpr u32 kFormatTable = 0x8200C670;  // feedingfrenzy-nx: the same 128 bytes as Bejeweled 3's 0x82001620 (N&B 0x820052F8)
+// zuma-nx (2026-10-26): 0x82015E38, the same 128 bytes (the image's only copy).
+constexpr u32 kFormatTable = 0x82015E38;  // feedingfrenzy-nx: 0x8200C670, Bejeweled 3's 0x82001620 (N&B 0x820052F8)
 // The register packets between RB_COPY_CONTROL and RB_COPY_DEST_INFO.
 constexpr u32 kCopyControl = 0x2A18;
 constexpr u32 kCopyDestInfo = 0x2A24;
