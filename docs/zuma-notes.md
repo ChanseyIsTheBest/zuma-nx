@@ -242,3 +242,29 @@ docs/optimising-functions.md, as in both Feeding Frenzy ports.
   `zuma_language = "ko"`) shows the Korean title prompt, main menu ("Zuma에 오신 것을 환영합니다!") and adventure
   screen. Delivered in `out/dist/dev_20261027_zuma/zuma-nx/` (NRO `296f5866...`, the README with the languages); ELF
   and map `out/nx/elf/zuma_dev_lang_20261027.*`.
+
+## Touch controls (2026-10-27)
+
+The user: "Is there symbols in the code to add touch support to zuma and zuma's revenged like bejeweled 3 ... I want all
+menu items clickable and tapping in levels shoots the ball in that direction". Zuma's framework is an early
+SexyAppFramework cut down by the Xbox 360 port (a 39-slot Widget vtable, no RTTI names, no mouse handling left), so
+Bejeweled 3's method (the framework's touch path) does not apply: `app/src/zuma_touch.cpp` drives the pad's way
+(`input_script::Press`, the touch controls' pad) on what the game keeps.
+
+- **Found with a PC test aid** (`app/src/zuma_memdiff.cpp`, `zuma_diag_memdiff = "f0,f1,f2"`: the guest words that
+  change between f1 and f2 only, with the stick moved in between; `zuma_diag_memdump`): the Board (vtable `0x82001220`,
+  built by `sub_82077878`) holds its Gun at +600, whose +4 changed (0 -> 2.172 with the stick right): the angle in
+  radians, the shot's direction (sin a, cos a) on the screen (0 down); its centre at +8 / +12 ((327, 233) in level 1-1).
+  The Board's +164 is the app, a static object at `0x823D13B8`: +1620 the Board (`sub_820C7F08` stores it), +744 the
+  WidgetManager, whose focus is at +56 (SetFocus `sub_820DE870`). The game's 640x480 is drawn at 1.25x from (240, 60)
+  of the 1280x720 screen (the frog at (649, 351)).
+- **A tap:** in a level (the Board has the focus) the Gun is turned towards it, then A; on a menu (the focused widget
+  has neighbours: the entries are linked at +56 / +60 / +64 / +68, their place and size at +8 / +12 / +16 / +20) the
+  entry under it is focused, then A; a screen of button prompts alone (the adventure screen's "A Play" / "B Main
+  Menu", 0 wide) or with no neighbours ("PRESS A TO START", the instructions): A.
+- **Checked:** the PC, touch alone (`touch2`): the title, Adventure from the main menu, the adventure screen, the
+  instructions, level 1-1 shot by taps (170 -> 290); Help & Options from the main menu opens its Options dialog
+  (`touch3`). Ryujinx, the Switch build, touch alone (`touch_emu1`): the same path, level 1-1 to 870 points.
+- **Not by touch:** opening the pause menu (the + button); the Options dialog's sliders take a tap as focus and A only.
+- **Delivered:** `out/dist/dev_20261027_zuma/zuma-nx/` (NRO `6eae2902...`, the README with the touch controls); ELF and
+  map `out/nx/elf/zuma_dev_touch_20261027.*`.
