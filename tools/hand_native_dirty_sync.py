@@ -76,6 +76,14 @@ def rewrite_text(addr, text):
             for mm in re.finditer(r'REX_LOOP_(?:OUT|IN)\(\s*ll_(\w+)\s*,\s*l_(\w+)\s*\)', line):
                 w.add(mm.group(1))
                 w.add(mm.group(2))
+            # zumasrevenge-nx (2026-10-28, from sa2-nx's question): a vector local written through its fields, which the
+            # forms above miss: a simde store into it (simde_mm_store_si128((simde__m128i*)l_v63.u8, ...)) and an
+            # element assignment (l_v63.u16[3] = ...). A field use followed by "[" and an assignment, or the local cast
+            # to a pointer, counts as a write (a read through a pointer cast also does: only more write-backs).
+            for mm in re.finditer(r'\(\s*\w+\s*\*\s*\)\s*&?\s*l{1,2}_(\w+)\.\w+', line):
+                w.add(mm.group(1))
+            for mm in re.finditer(r'\bl{1,2}_(\w+)\.\w+\[[^\]]*\]\s*' + ASSIGN, line):
+                w.add(mm.group(1))
             # Every bare use of a register local (not followed by a field) must be one of the forms above.
             for mm in re.finditer(r'\b(l{1,2}_\w+)\b(?!\.)', line):
                 n = re.escape(mm.group(1))
