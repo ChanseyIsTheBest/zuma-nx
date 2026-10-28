@@ -302,3 +302,8 @@ upload it to github alongside making a web installer for it", "make sure all log
   or `default.xexp`), checks `default.xex` and `default.xexp` by their SHA-256, and packs the update's `default.xexp`
   with the game. Its game pack is `tools/build_asset_pack.py`'s byte for byte apart from the pack id; a game without
   the update is refused ("Title Update #2 was not found").
+- **Published** (the user: "yeah upload zuma 1 and it's web installer to github make sure all logging is turned off for
+  it it's perfect"): https://github.com/ChanseyIsTheBest/zuma-nx (release v1.0.0 with `zuma.nro`, `6dcc3268...`) and
+  the installer page https://chanseyisthebest.github.io/zuma-nx-installer/ (repository zuma-nx-installer; its
+  deployment downloads the NRO from the release and checks it against `release/manifest.json`; the live page serves
+  `6dcc3268...`).
