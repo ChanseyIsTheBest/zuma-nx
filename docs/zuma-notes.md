@@ -268,3 +268,19 @@ Bejeweled 3's method (the framework's touch path) does not apply: `app/src/zuma_
 - **Not by touch:** opening the pause menu (the + button); the Options dialog's sliders take a tap as focus and A only.
 - **Delivered:** `out/dist/dev_20261027_zuma/zuma-nx/` (NRO `6eae2902...`, the README with the touch controls); ELF and
   map `out/nx/elf/zuma_dev_touch_20261027.*`.
+
+## Touch: hold to aim (2026-10-28)
+
+The user: "For Zuma and Zuma's revenge I'd like to if you do a tap held down you can rotate the frog/aiming reticle and
+when you tap again you fire". A touch in a level (`LevelTouch` in `app/src/zuma_touch.cpp`) is now followed to its end:
+
+- **A tap** turns the frog to it (Gun +4) and shoots (A) when it ends (before: at once when it began).
+- **A hold**, a touch longer than 12 frames (0.2 s) or one that moves more than 24 screen pixels, turns the frog after
+  the finger each frame and shoots nothing; the frog stays aimed, and the next tap on that level shoots where it points,
+  wherever it lands (a hold then aims again). The level ending or the pause menu taking the focus ends the touch.
+- The Switch's touch screen now reports the finger's moves (each frame while it is down), the PC's mouse its moves
+  while the button is down.
+- **Checked** (PC, `hold1`, touch alone): taps shot at their angle (-0.059 straight down, -2.117, 2.113, 0.902); a hold
+  dragged from (528, 392) to (128, 392) left the frog at -0.897 with no shot, and the next tap at (528, 112) shot at
+  -0.897 (the shot's picture: the frog and its aim line to the lower left); a still hold (0.5 s) at (320, 48) aimed at
+  -3.104 and the next tap shot there; the tap after shot at its own place again.
