@@ -72,6 +72,8 @@ To use the buttons by letter instead (the Switch's A acts as A), set `input_xbox
 - in a level, tap where the ball should go: the frog turns there and shoots;
 - or touch and hold: the frog follows your finger without shooting, and stays aimed when you let go; your next tap
   then shoots where it points, wherever you tap;
+- tap with two fingers at once to swap the balls (B); nothing is shot, and the frog keeps its aim (while you hold a
+  finger to aim, a tap with a second finger swaps too);
 - tap a menu entry to choose it, and tap anywhere on a screen with only "A" to continue.
 
 Opening the pause menu is the **+** button, and the Options dialog's sliders are moved with the stick.

@@ -14,8 +14,10 @@
 // The game's 640x480 is drawn at 1.25x from (240, 60) of the 1280x720 screen (`memdiff3`: the frog's centre (327, 233)
 // at (649, 351)).
 // A tap:
-//   - in a level (the Board has the focus): the Gun turned towards it, then A (the shot) when it ends; a held touch
-//     turns the Gun after the finger without shooting, and the next tap then shoots where it points (LevelTouch);
+//   - in a level (the Board has the focus): the Gun turned towards it, then A (the shot) when it ends, as soon as the
+//     Gun is ready, the frog held on the tap's angle until the shot left (ServeShots); a held touch
+//     turns the Gun after the finger without shooting, and the next tap then shoots where it points (LevelTouch); a
+//     second finger on the screen with it (a two-finger tap) is B, the balls swapped, and nothing shot;
 //   - on a screen whose focused widget has neighbours (a menu): the entry under the tap focused (SetFocus), then A; a
 //     tap beside the entries does nothing;
 //   - on any other screen ("PRESS A TO START", the instructions, the adventure screen): A.
@@ -50,8 +52,9 @@ REXCVAR_DEFINE_BOOL(zuma_touch, true, "Zuma",
                     "shoots in a level");
 REXCVAR_DEFINE_BOOL(zuma_touch_log, false, "Zuma", "Log every tap handed to the game");
 REXCVAR_DEFINE_STRING(zuma_touch_script, "", "Zuma",
-                      "Test runs: scripted taps, comma-separated \"<frame>:<down|move|up>:<x>:<y>\" in 1280x720 screen "
-                      "pixels, frames counted by this file's dispatch (one a frame); empty = off");
+                      "Test runs: scripted taps, comma-separated \"<frame>:<down|move|up|second>:<x>:<y>\" in 1280x720 "
+                      "screen pixels (second: another finger lands), frames counted by this file's dispatch (one a "
+                      "frame); empty = off");
 
 extern "C" REX_FUNC(__imp__sub_820DE870);  // WidgetManager::SetFocus(Widget*)
 
@@ -68,9 +71,11 @@ constexpr uint32_t kWidgetX = 8, kWidgetY = 12, kWidgetWidth = 16, kWidgetHeight
 constexpr uint32_t kWidgetLinks = 56;  // four neighbours: +56 / +60 / +64 / +68
 constexpr float kScreenLeft = 240.0f, kScreenTop = 60.0f, kScale = 1.25f;
 constexpr uint16_t kPadA = 0x1000;  // XINPUT_GAMEPAD_A
+constexpr uint16_t kPadB = 0x2000;  // XINPUT_GAMEPAD_B: a level's ball swap ("Press B to swap the balls.")
 constexpr float kPromptWidth = 100.0f;  // a button prompt's width, the game's units (it keeps 0)
 
-enum class Phase : uint8_t { kBegan, kMoved, kEnded };
+// kSecond: another finger landed while the touch is down (the PC: the right mouse button).
+enum class Phase : uint8_t { kBegan, kMoved, kEnded, kSecond };
 struct Touch {
   Phase phase;
   float x, y;  // 0..1 of the screen / window
@@ -109,17 +114,27 @@ inline void Store32(uint8_t* base, uint32_t address, uint32_t value) {
 // kHoldFrames (0.2 s at 60 frames a second) or one that moves further than kHoldMove screen pixels, turns the frog after
 // the finger and does not shoot; the frog stays aimed (`g_armed_board`), and the next tap on that Board shoots where it
 // points, wherever it lands (a hold then aims again).
+// A second finger (the user, 2026-10-28: "tapping with two fingers at the screen at the same time" swaps the balls) is
+// B. A touch that is not a hold yet is then no tap: the frog turned back to where it pointed before it (the first
+// finger may land a frame early) and nothing more; a hold goes on aiming. Each further second finger swaps again.
+// A touch turns the frog only from its kTurnDelay-th frame (a tap at its end, when it shoots), so a two-finger tap's
+// first finger, landing a frame or two before the second, does not turn it for a frame (the user, 2026-10-28: "stop
+// the frog from turning for a frame when doing a double tap").
 constexpr uint64_t kHoldFrames = 12;
 constexpr float kHoldMove = 24.0f;
+constexpr uint64_t kTurnDelay = 5;
 struct LevelTouch {
-  bool active = false;  // a touch that began on the Board, which has the focus, is down
-  bool hold = false;    // it is a hold
-  uint64_t start = 0;   // the frame it began
+  bool active = false;   // a touch that began on the Board, which has the focus, is down
+  bool hold = false;     // it is a hold
+  bool swapped = false;  // a second finger swapped the balls before it was a hold: it does nothing more
+  uint64_t start = 0;    // the frame it began
   uint32_t board = 0, gun = 0;
   float start_x = 0, start_y = 0, x = 0, y = 0;  // 0..1 of the screen
+  uint32_t angle_before = 0;                     // the Gun's angle (+4) before the touch
 };
 LevelTouch g_level;
 uint32_t g_armed_board = 0;
+float g_armed_angle = 0.0f;  // the frog's angle when the hold ended
 
 // The game's 640x480 coordinates of a place on the screen (0..1).
 inline float GameX(float x) { return (x * 1280.0f - kScreenLeft) / kScale; }
@@ -156,11 +171,66 @@ float FrogAngle(const uint8_t* base, uint32_t gun) {
 }
 
 // The level a touch began on is still the one played (not ended, not under the pause menu).
-bool LevelTouchValid(const uint8_t* base, const LevelTouch& t) {
+bool LevelValid(const uint8_t* base, uint32_t board, uint32_t gun) {
   const uint32_t manager = Load32(base, kApp + kAppWidgetManager);
-  return Load32(base, kApp + kAppBoard) == t.board && Load32(base, t.board) == kBoardVtable &&
-         Load32(base, t.board + kBoardGun) == t.gun && ObjectAddress(manager) &&
-         Load32(base, manager + kManagerFocus) == t.board;
+  return Load32(base, kApp + kAppBoard) == board && Load32(base, board) == kBoardVtable &&
+         Load32(base, board + kBoardGun) == gun && ObjectAddress(manager) &&
+         Load32(base, manager + kManagerFocus) == board;
+}
+bool LevelTouchValid(const uint8_t* base, const LevelTouch& t) { return LevelValid(base, t.board, t.gun); }
+
+// A tap's shot (the user, 2026-10-28: Zuma needs Zuma's Revenge's "direction shooting fixes"). The Gun's +0x34 is its
+// shot's state: 0 ready, 1 the shot leaving (the frame after A), 2 the next ball coming up; a shot and its reload take
+// 12 frames, and A meanwhile is ignored (`watch1`, a PC run's per-frame watch of the Gun). A tap's A was pressed at
+// once, behind the presses before it (4 frames held, 6 released): a quick tap's A came in the reload and was lost, or
+// waited while the next touch turned the frog, and its ball left towards that one. Now each tap's shot waits for the
+// Gun to be ready, with the frog held on the tap's angle until the shot left (+0x34 2, the next ball coming up); then
+// the next shot. At most kShotsWaiting wait (a newer tap takes the last one's place); a shot the game does not take
+// within kShotTimeout frames of its A, or whose level ended or was paused, is given up.
+constexpr uint32_t kGunState = 0x34;
+constexpr size_t kShotsWaiting = 2;
+constexpr uint64_t kShotTimeout = 20;
+struct Shot {
+  uint32_t board, gun;
+  float angle;
+};
+std::deque<Shot> g_shots;
+uint64_t g_shot_pressed = 0;  // the frame the first shot's A was pressed, 0 before
+
+void QueueShot(const Shot& shot) {
+  if (g_shots.size() >= kShotsWaiting) g_shots.pop_back();
+  g_shots.push_back(shot);
+}
+
+// Each frame, at the end of the dispatch (after the touches turned the frog): the first shot served.
+void ServeShots(uint8_t* base, uint64_t frame, bool log) {
+  while (!g_shots.empty()) {
+    const Shot& s = g_shots.front();
+    if (!LevelValid(base, s.board, s.gun)) {
+      if (log) REXLOG_INFO("[touch] level: {} shot(s) given up (the level ended or paused)", g_shots.size());
+      g_shots.clear();
+      g_shot_pressed = 0;
+      return;
+    }
+    const uint32_t state = Load32(base, s.gun + kGunState);
+    if (g_shot_pressed) {
+      const bool left = state == 2, late = frame - g_shot_pressed > kShotTimeout;
+      if (left || late) {
+        if (log) REXLOG_INFO("[touch] level: the shot at {:.3f} {}", s.angle, left ? "left" : "was not taken: given up");
+        g_shots.pop_front();
+        g_shot_pressed = 0;
+        continue;
+      }
+    }
+    uint32_t bits;
+    std::memcpy(&bits, &s.angle, 4);
+    Store32(base, s.gun + kGunAngle, bits);
+    if (!g_shot_pressed && state == 0) {
+      zuma::input_script::Press(kPadA, 4);
+      g_shot_pressed = frame;
+    }
+    return;
+  }
 }
 
 // Test runs: zuma_touch_script, parsed once; the events due at each dispatch are queued as if touched.
@@ -188,10 +258,13 @@ void PollScript(uint64_t frame) {
       float x = 0, y = 0;
       if (std::sscanf(item.c_str(), "%llu:%7[a-z]:%f:%f", &when, kind, &x, &y) == 4) {
         const std::string k = kind;
-        const Phase phase = k == "down" ? Phase::kBegan : k == "move" ? Phase::kMoved : Phase::kEnded;
+        const Phase phase = k == "down"     ? Phase::kBegan
+                            : k == "move"   ? Phase::kMoved
+                            : k == "second" ? Phase::kSecond
+                                            : Phase::kEnded;
         script.push_back({when, phase, x / 1280.0f, y / 720.0f});
       } else {
-        REXLOG_WARN("[touch] zuma_touch_script: \"{}\" is not <frame>:<down|move|up>:<x>:<y>", item);
+        REXLOG_WARN("[touch] zuma_touch_script: \"{}\" is not <frame>:<down|move|up|second>:<x>:<y>", item);
       }
     }
     if (!script.empty()) REXLOG_INFO("[touch] scripted touches: {}", script.size());
@@ -203,25 +276,43 @@ void PollScript(uint64_t frame) {
 }
 
 #if REX_PLATFORM_SWITCH
-// The Switch: the touch screen polled once a frame (1280x720 panel coordinates; docked, nothing touches it).
+// The Switch: the touch screen polled once a frame (1280x720 panel coordinates; docked, nothing touches it). The touch
+// is the first finger (by its id); another finger landing beside it is kSecond. Once the first finger lifts, the others
+// are ignored until all have.
 void PollSwitch() {
   static bool ready = false;
-  static bool was_down = false;
   if (!ready) {
     hidInitializeTouchScreen();
     ready = true;
   }
+  static bool down = false, wait_all_up = false;
+  static uint32_t finger = 0;
+  static int32_t was_count = 0;
   static float last_x = 0.0f, last_y = 0.0f;
   HidTouchScreenState state{};
-  const bool down = hidGetTouchScreenStates(&state, 1) != 0 && state.count > 0;
+  const int32_t count = hidGetTouchScreenStates(&state, 1) ? std::clamp<int32_t>(state.count, 0, 16) : 0;
   if (down) {
+    int32_t i = 0;
+    while (i < count && state.touches[i].finger_id != finger) ++i;
+    if (i < count) {
+      last_x = float(state.touches[i].x) / 1280.0f;
+      last_y = float(state.touches[i].y) / 720.0f;
+      Push(Phase::kMoved, last_x, last_y);
+    } else {
+      Push(Phase::kEnded, last_x, last_y);
+      down = false;
+      wait_all_up = count > 0;
+    }
+  } else if (count > 0 && !wait_all_up) {
+    finger = state.touches[0].finger_id;
     last_x = float(state.touches[0].x) / 1280.0f;
     last_y = float(state.touches[0].y) / 720.0f;
-    Push(was_down ? Phase::kMoved : Phase::kBegan, last_x, last_y);
-  } else if (was_down) {
-    Push(Phase::kEnded, last_x, last_y);
+    Push(Phase::kBegan, last_x, last_y);
+    down = true;
   }
-  was_down = down;
+  if (count == 0) wait_all_up = false;
+  if (down && count >= 2 && was_count < 2) Push(Phase::kSecond, last_x, last_y);
+  was_count = count;
 }
 #endif
 
@@ -243,6 +334,9 @@ void OnWindowMouse(MouseKind kind, float x, float y) {
       down = false;
       Push(Phase::kEnded, x, y);
       break;
+    case MouseKind::kSecond:
+      if (down) Push(Phase::kSecond, x, y);  // the right button with the left held: a second finger
+      break;
   }
 }
 
@@ -255,9 +349,9 @@ void Dispatch(PPCContext& ctx, uint8_t* base) {
 #endif
   const bool log = REXCVAR_GET(zuma_touch_log);
   // A touch in a level, each frame: past kHoldFrames it is a hold. A hold turns the frog after the finger; a touch that
-  // may still be a tap turns it too, unless a hold aimed it before (the tap then shoots where it points). The level
-  // gone or paused, the touch ends.
-  if (g_level.active) {
+  // may still be a tap turns it too from its kTurnDelay-th frame, unless a hold aimed it before (the tap then shoots
+  // where it points). The level gone or paused, the touch ends. A touch that swapped the balls does nothing more.
+  if (g_level.active && !g_level.swapped) {
     if (!LevelTouchValid(base, g_level)) {
       g_level.active = false;
     } else {
@@ -265,41 +359,55 @@ void Dispatch(PPCContext& ctx, uint8_t* base) {
         g_level.hold = true;
         if (log) REXLOG_INFO("[touch] level: a hold, aiming");
       }
-      if (g_level.hold || g_armed_board != g_level.board) TurnFrog(base, g_level.gun, g_level.x, g_level.y);
+      if (g_level.hold || (g_armed_board != g_level.board && frame - g_level.start >= kTurnDelay)) {
+        TurnFrog(base, g_level.gun, g_level.x, g_level.y);
+      }
     }
   }
   std::deque<Touch> touches;
   {
     std::lock_guard<std::mutex> lock(g_mutex);
-    if (g_queue.empty()) return;
     touches.swap(g_queue);
   }
   for (const Touch& t : touches) {
+    // A second finger: in a level, B swaps the balls; anywhere else nothing (B is the menus' back).
+    if (t.phase == Phase::kSecond) {
+      if (g_level.active && LevelTouchValid(base, g_level)) {
+        if (!g_level.hold) {
+          Store32(base, g_level.gun + kGunAngle, g_level.angle_before);
+          g_level.swapped = true;
+        }
+        zuma::input_script::Press(kPadB, 4);
+        if (log) REXLOG_INFO("[touch] level: a second finger: B (swap){}", g_level.hold ? ", the hold aims on" : "");
+      }
+      continue;
+    }
     // A level's touch: its moves and its end.
     if (g_level.active && t.phase != Phase::kBegan) {
       g_level.x = t.x;
       g_level.y = t.y;
-      if (std::fabs((t.x - g_level.start_x) * 1280.0f) > kHoldMove ||
-          std::fabs((t.y - g_level.start_y) * 720.0f) > kHoldMove) {
+      if (!g_level.swapped && (std::fabs((t.x - g_level.start_x) * 1280.0f) > kHoldMove ||
+                               std::fabs((t.y - g_level.start_y) * 720.0f) > kHoldMove)) {
         g_level.hold = true;
       }
       if (t.phase == Phase::kEnded) {
         g_level.active = false;
         g_down = false;
-        if (!LevelTouchValid(base, g_level)) continue;
+        if (g_level.swapped || !LevelTouchValid(base, g_level)) continue;
         if (g_level.hold) {
           // A hold: the frog stays where it points, and the next tap shoots there.
           g_armed_board = g_level.board;
-          if (log) REXLOG_INFO("[touch] level: held, the frog at {:.3f}: the next tap shoots", FrogAngle(base, g_level.gun));
+          g_armed_angle = FrogAngle(base, g_level.gun);
+          if (log) REXLOG_INFO("[touch] level: held, the frog at {:.3f}: the next tap shoots", g_armed_angle);
         } else {
-          // A tap: the frog turned to it (unless a hold aimed it), then A.
+          // A tap: the frog turned to it (unless a hold aimed it), then its shot (ServeShots).
           const bool armed = g_armed_board == g_level.board;
-          const float angle = armed ? FrogAngle(base, g_level.gun) : TurnFrog(base, g_level.gun, t.x, t.y);
-          zuma::input_script::Press(kPadA, 4);
+          const float angle = armed ? g_armed_angle : TurnFrog(base, g_level.gun, t.x, t.y);
+          QueueShot({g_level.board, g_level.gun, angle});
           g_armed_board = 0;
           if (log) {
-            REXLOG_INFO("[touch] level: tap at ({:.0f}, {:.0f}){}, the frog at {:.3f}: A", GameX(t.x), GameY(t.y),
-                        armed ? " after a hold" : "", angle);
+            REXLOG_INFO("[touch] level: tap at ({:.0f}, {:.0f}){}, the frog at {:.3f}: shot {} of {}", GameX(t.x),
+                        GameY(t.y), armed ? " after a hold" : "", angle, g_shots.size(), kShotsWaiting);
           }
         }
       }
@@ -320,9 +428,8 @@ void Dispatch(PPCContext& ctx, uint8_t* base) {
     if (board && ObjectAddress(board) && Load32(base, board) == kBoardVtable && focus == board) {
       const uint32_t gun = Load32(base, board + kBoardGun);
       if (ObjectAddress(gun)) {
-        g_level = {true, false, frame, board, gun, t.x, t.y, t.x, t.y};
+        g_level = {true, false, false, frame, board, gun, t.x, t.y, t.x, t.y, Load32(base, gun + kGunAngle)};
         if (g_armed_board != board) g_armed_board = 0;  // a hold on another level aims nothing here
-        if (!g_armed_board) TurnFrog(base, gun, t.x, t.y);
         if (log) REXLOG_INFO("[touch] level: touch at ({:.0f}, {:.0f}){}", gx, gy, g_armed_board ? " (aimed by a hold)" : "");
       }
       continue;
@@ -374,6 +481,7 @@ void Dispatch(PPCContext& ctx, uint8_t* base) {
     zuma::input_script::Press(kPadA, 4);
     if (log) REXLOG_INFO("[touch] screen (focus 0x{:08X}) at ({:.0f}, {:.0f}): A", focus, gx, gy);
   }
+  ServeShots(base, frame, log);
 }
 
 }  // namespace zuma::touch

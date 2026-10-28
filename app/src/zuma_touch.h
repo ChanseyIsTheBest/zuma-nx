@@ -8,9 +8,10 @@
 
 namespace zuma::touch {
 
-enum class MouseKind { kDown, kMove, kUp };
+enum class MouseKind { kDown, kMove, kUp, kSecond };
 
-// The PC window's left mouse button and pointer, as 0..1 of the window (called from the window's input thread).
+// The PC window's left mouse button and pointer, as 0..1 of the window (called from the window's input thread); the
+// right button (kSecond) is a second finger while the left is held.
 void OnWindowMouse(MouseKind kind, float x, float y);
 
 // Hands the taps queued since the previous frame to the game (on the Switch it polls the touch screen first). Called on

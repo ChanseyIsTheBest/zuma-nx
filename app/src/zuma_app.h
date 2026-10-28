@@ -258,9 +258,11 @@ class ZumaApp : public rex::ReXApp {
   }
 #endif
 
-  // The PC: the left mouse button is the game's taps (zuma_touch; the Switch reads its touch screen itself).
+  // The PC: the left mouse button is the game's taps, the right one a second finger (zuma_touch; the Switch reads its
+  // touch screen itself).
   void OnMouseDown(rex::ui::MouseEvent& e) override {
     if (e.button() == rex::ui::MouseEvent::Button::kLeft) ForwardMouse(zuma::touch::MouseKind::kDown, e);
+    if (e.button() == rex::ui::MouseEvent::Button::kRight) ForwardMouse(zuma::touch::MouseKind::kSecond, e);
   }
   void OnMouseUp(rex::ui::MouseEvent& e) override {
     if (e.button() == rex::ui::MouseEvent::Button::kLeft) ForwardMouse(zuma::touch::MouseKind::kUp, e);

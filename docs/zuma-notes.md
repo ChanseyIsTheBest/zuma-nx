@@ -285,6 +285,47 @@ when you tap again you fire". A touch in a level (`LevelTouch` in `app/src/zuma_
   -0.897 (the shot's picture: the frog and its aim line to the lower left); a still hold (0.5 s) at (320, 48) aimed at
   -3.104 and the next tap shot there; the tap after shot at its own place again.
 
+## Touch: two fingers swap the balls (2026-10-28)
+
+The user: "Forgot to implement ball swapping in zuma and zuma's revenge when using the touch screen ... I was thinking
+tapping with two fingers at the screen at the same time does it". The game's swap is B ("Press B to swap the balls.",
+`resources.xpr`).
+
+- **The Switch's touch screen** is now followed by finger: the touch is the first finger (its `finger_id`), and another
+  finger landing while it is down is a new event, `kSecond` (each time the count of fingers reaches two). When the
+  first finger lifts, the touch ends where it was, and the other fingers are ignored until all have lifted (before, the
+  next finger became `touches[0]` and the touch jumped to it). The PC: the right mouse button with the left held; test
+  scripts: `<frame>:second:<x>:<y>`.
+- **In a level** a second finger presses B. A touch that is not a hold yet is then no tap: the Gun's angle (+4) goes
+  back to what it was before the touch (the first finger may land a frame early and turn the frog), and its end shoots
+  nothing. A hold goes on aiming and stays aimed when it ends, so a finger can hold the aim while another swaps. A
+  hold's aim from before is kept. Outside a level a second finger does nothing (B is the menus' back).
+- **Checked** (PC, touch alone, level 1-1): `swap1`: a two-finger tap at once and one with the second finger 2 frames
+  late each swapped (red / blue in the mouth and on the back changed places, shots 46 -> 47 and 48 -> 49) with the frog
+  unturned and nothing shot; the tap after shot. `swap2`: a hold with two second fingers 1.5 s apart swapped twice
+  (shots 56 and 58), the frog stayed on the hold's angle (2.087), and the next tap shot there.
+
+## Touch: each shot waits for the frog (2026-10-28)
+
+The user: "could you also apply the zuma's revenge direction shooting fixes to zuma it needs them", then "stop the
+frog from turning for a frame when doing a double tap".
+
+- **What went wrong** (`watch1`, a PC run's per-frame watch of the Gun after taps): the Gun's +0x34 is its shot's
+  state, 0 ready, 1 the shot leaving (the frame after A), 2 the next ball coming up; a shot and its reload take 12
+  frames, and A meanwhile is ignored. A tap's A was pressed at once, behind the presses before it (4 frames held, 6
+  released). Of six taps 8 frames apart, the second came in a reload and shot nothing, and the fifth's A waited while
+  the sixth touch turned the frog: its ball left at -0.033 (the sixth tap's angle) instead of -3.104.
+- **Now** (`ServeShots`): each tap's shot waits for the Gun to be ready (+0x34 0), with the frog held on the tap's
+  angle until the shot left (+0x34 2); then the next. At most 2 wait (a newer tap takes the last one's place); a shot
+  not taken within 20 frames of its A, or whose level ended or was paused, is given up.
+- **A touch turns the frog from its 5th frame** (a tap at its end, when it shoots): a two-finger tap's first finger no
+  longer turns it for a frame before the second lands.
+- **The stick** sets the frog's angle outright while it is pushed, every frame (`watch1`: the script's stick overwrote
+  the touch's angle each frame); a touch does not use it.
+- **Checked** (PC, `watch2`): the six taps 8 frames apart shot at -2.117, 0.900, -0.897, 2.105 and -0.033, each its
+  tap's angle (the fifth tap's shot taken by the sixth's place), one every 13-14 frames; taps at the screen's edges,
+  corners and the HUD shot at their angles. `swap3`: the two-finger swaps and the hold as before.
+
 ## 1.0.0 (2026-10-28)
 
 The user: "make this image in downloads zuma 1's icon ... make the version 1.0.0 the author ChanseyIsTheBest do LTO and
@@ -307,3 +348,10 @@ upload it to github alongside making a web installer for it", "make sure all log
   the installer page https://chanseyisthebest.github.io/zuma-nx-installer/ (repository zuma-nx-installer; its
   deployment downloads the NRO from the release and checks it against `release/manifest.json`; the live page serves
   `6dcc3268...`).
+
+## 1.0.1 (2026-10-28)
+
+The user, after trying it on the console: "zuma 1 is fixed upload it to github and update installer". Version 1.0.1:
+the two-finger ball swap, each shot waiting for the frog, and no turn in a touch's first frames (the three sections
+above). NRO `37ce8d4b...` (link-time optimisation, no PGO, logging off as 1.0.0's; `tools/check_switch_build.py`: all
+checks passed); the game pack is 1.0.0's. Release v1.0.1 on GitHub; the installer page's manifest takes its NRO.
