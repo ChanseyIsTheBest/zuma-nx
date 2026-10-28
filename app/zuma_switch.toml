@@ -10,3 +10,7 @@ zuma_language = ""
 # single Joy-Con held sideways.
 input_xbox_layout = true
 input_joycon_sideways = true
+
+# Touch controls (the touch screen, in handheld mode): tap a menu entry or a button to use it, and in a level tap where
+# the ball should go; false = off.
+zuma_touch = true

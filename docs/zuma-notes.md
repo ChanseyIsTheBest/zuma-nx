@@ -284,3 +284,21 @@ when you tap again you fire". A touch in a level (`LevelTouch` in `app/src/zuma_
   dragged from (528, 392) to (128, 392) left the frog at -0.897 with no shot, and the next tap at (528, 112) shot at
   -0.897 (the shot's picture: the frog and its aim line to the lower left); a still hold (0.5 s) at (320, 48) aimed at
   -3.104 and the next tap shot there; the tap after shot at its own place again.
+
+## 1.0.0 (2026-10-28)
+
+The user: "make this image in downloads zuma 1's icon ... make the version 1.0.0 the author ChanseyIsTheBest do LTO and
+upload it to github alongside making a web installer for it", "make sure all logging is off for the release build".
+
+- **The NRO:** version 1.0.0, author ChanseyIsTheBest, the icon `out/icon.jpg` (the user's art, 256x256; not committed),
+  logging off (the built-in settings; only a crash writes `logs/rex/rex_crash.log`), link-time optimisation on, no
+  profile-guided optimisation (`build_switch.ps1 -Pgo none -Define "ZUMA_SWITCH_LTO=ON"`). NRO `6dcc3268...`;
+  `tools/check_switch_build.py`: all checks passed. The player's `zuma.toml` has the language, the controllers and
+  `zuma_touch`.
+- **Ryujinx** (`rel2`): the release NRO with the zip the installer's code made (`test/package_node.mjs`), a first start
+  with no `zuma.toml`: the game wrote `zuma.toml`, `deko3d_shaders.bin` and `pipeline_list.bin` and nothing else (no
+  `logs/`, no `deko3d.log`); no emulator error. The user tested the NRO on the console ("it's perfect").
+- **The installer** (zuma-nx-installer, from feedingfrenzy-nx-installer): finds the game and Title Update #2 (a package
+  or `default.xexp`), checks `default.xex` and `default.xexp` by their SHA-256, and packs the update's `default.xexp`
+  with the game. Its game pack is `tools/build_asset_pack.py`'s byte for byte apart from the pack id; a game without
+  the update is refused ("Title Update #2 was not found").
