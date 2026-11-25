@@ -2,7 +2,7 @@
 
 <h1 align=center>Zuma: Nintendo Switch port</h1>
 
-<p align=center><b>zuma-nx 1.0.1</b> · <a href="https://chanseyisthebest.github.io/zuma-nx-installer/">web installer</a> · <a href="https://github.com/ChanseyIsTheBest/zuma-nx/releases/tag/v1.0.1">release</a></p>
+<p align=center><b>zuma-nx 1.0.2</b> · <a href="https://chanseyisthebest.github.io/zuma-nx-installer/">web installer</a> · <a href="https://github.com/ChanseyIsTheBest/zuma-nx/releases/tag/v1.0.2">release</a></p>
 
 An unofficial native port of the Xbox 360 (Xbox Live Arcade) version of **Zuma** by PopCap Games and Oberon Media, with
 touch controls. Made by static recompilation with [ReXGlue](https://github.com/rexglue/rexglue-sdk), from the
@@ -34,6 +34,10 @@ Features:
   middle, as on the Xbox 360), 60 fps.
 - The console's system language by default, or `zuma_language`: `en`, `ja`, `de`, `fr`, `es`, `it`, `ko` or `zh`.
 - Settings are in `zuma.toml` next to the NRO; delete it to get the defaults back.
+- A game menu: hold **A + B + X + Y + L + R** together (**+** closes it) for the settings (language, button layout,
+  Joy-Con, touch, and the menu's own buttons, colour, font and background), the achievements and each player's
+  controls. It saves your choices in `zuma.toml`.
+- A smaller install: the installer stores the game files compressed, with the sounds as Opus.
 - No log files, except `logs/rex/rex_crash.log` after a crash.
 
 Known issue:
